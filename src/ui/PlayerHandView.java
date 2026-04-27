@@ -131,26 +131,27 @@ public class PlayerHandView extends VBox{
 				"-fx-cursor: default;"
 			);
 		} else if (isTarget) {
-			//if someone is drawing from your hand
-			//show hand face down but clickable
-            btn.setText("?");
-            final int capturedIndex = index;
-            btn.setStyle(
-                "-fx-font-family: 'DM Mono', monospace;" +
-                "-fx-font-size: 18px;" +
-                "-fx-text-fill: #e8c87a;" +
-                "-fx-background-color: #1c4d8c;" +
-                "-fx-border-color: #4a90d9;" +
-                "-fx-border-width: 2;" +
-                "-fx-border-radius: 6;" +
-                "-fx-background-radius: 6;" +
-                "-fx-min-width: 44px;" +
-                "-fx-min-height: 60px;" +
-                "-fx-cursor: hand;"
-            );
-            btn.setOnAction(e -> {
-                if (onCardClicked != null) onCardClicked.accept(capturedIndex);
-            });
+		    btn.setText("?");
+		    final int capturedIndex = index;
+		    btn.setStyle(
+		        "-fx-font-family: 'DM Mono', monospace;" +
+		        "-fx-font-size: 18px;" +
+		        "-fx-text-fill: #e8c87a;" +
+		        "-fx-background-color: #1c4d8c;" +
+		        "-fx-border-color: #4a90d9;" +
+		        "-fx-border-width: 2;" +
+		        "-fx-border-radius: 6;" +
+		        "-fx-background-radius: 6;" +
+		        "-fx-min-width: 44px;" +
+		        "-fx-min-height: 60px;" +
+		        "-fx-cursor: hand;"
+		    );
+		    //fires immediately on press
+		    btn.setOnMousePressed(e -> {
+		        if (onCardClicked != null) onCardClicked.accept(capturedIndex);
+		    });
+		    btn.setOnMouseEntered(e -> btn.setOpacity(0.7));
+		    btn.setOnMouseExited(e -> btn.setOpacity(1.0));
 		} else {
 			//unclickable
 			btn.setText("▪");

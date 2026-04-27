@@ -412,27 +412,25 @@ public class GameView extends BorderPane{
 	}
 	
 	//style helpers
-    private Button makeButton(String text, String bg, String fg) {
-        Button btn = new Button(text);
-        btn.setStyle(
-            "-fx-font-family: 'DM Sans', sans-serif;" +
-            "-fx-font-size: 13px;" +
-            "-fx-font-weight: bold;" +
-            "-fx-text-fill: " + fg + ";" +
-            "-fx-background-color: " + bg + ";" +
-            "-fx-border-color: " + fg + "44;" +
-            "-fx-border-width: 1;" +
-            "-fx-border-radius: 6;" +
-            "-fx-background-radius: 6;" +
-            "-fx-padding: 6 16 6 16;" +
-            "-fx-cursor: hand;"
-        );
-        btn.setOnMouseEntered(e -> btn.setStyle(btn.getStyle()
-                .replace("background-color: " + bg, "background-color: " + lighten(bg))));
-        btn.setOnMouseExited(e -> btn.setStyle(btn.getStyle()
-                .replace("background-color: " + lighten(bg), "background-color: " + bg)));
-        return btn;
-    }
+	private Button makeButton(String text, String bg, String fg) {
+	    Button btn = new Button(text);
+	    String baseStyle =
+	        "-fx-font-family: 'DM Sans', sans-serif;" +
+	        "-fx-font-size: 13px;" +
+	        "-fx-font-weight: bold;" +
+	        "-fx-text-fill: " + fg + ";" +
+	        "-fx-background-color: " + bg + ";" +
+	        "-fx-border-color: " + fg + "44;" +
+	        "-fx-border-width: 1;" +
+	        "-fx-border-radius: 6;" +
+	        "-fx-background-radius: 6;" +
+	        "-fx-padding: 6 16 6 16;" +
+	        "-fx-cursor: hand;";
+	    btn.setStyle(baseStyle);
+	    btn.setOnMouseEntered(e -> btn.setOpacity(0.75));
+	    btn.setOnMouseExited(e -> btn.setOpacity(1.0));
+	    return btn;
+	}
  
     private Label makeSmallLabel(String text) {
         Label l = new Label(text);
