@@ -5,6 +5,10 @@
  * 
  */
 module uplb_babanuki {
-	requires javafx.graphics;
-	requires javafx.controls;
+    requires javafx.controls;
+    requires javafx.fxml;
+    requires javafx.graphics;
+
+    exports application to javafx.graphics;
+    opens application to javafx.graphics;
 }
