@@ -16,6 +16,9 @@ public class GameState {
 	//player holding the Queen
 	private Player loser = null;
 	
+	//wont allow condition checks until game loop starts the game
+	private boolean started = false;
+	
 	//UI stuff (listeners)
 	private final List<Consumer<String>> logListeners = new CopyOnWriteArrayList<>();
 	private final List<Runnable> stateChangeListeners = new CopyOnWriteArrayList<>();
@@ -24,6 +27,11 @@ public class GameState {
 	public GameState(List<Player> players) {
 		this.players = new ArrayList<>(players);
 		setupDrawRotation();
+	}
+	
+	//starts the game once setup is done
+	public void markStarted() {
+		this.started = true;
 	}
 	
 	//Clockwise rotation per player
@@ -42,6 +50,9 @@ public class GameState {
 	
 	//win or lose detection
 	public synchronized void checkEndConditions() {
+		//does nothing unless game has started
+		if (!started) { return; }
+		
 		for (Player p : players) {
 			if (p.getIsOut() && winner == null) {
 				//first player out is winner

@@ -29,6 +29,9 @@ public class GameLoop implements Runnable {
 	
 	@Override
 	public void run() {
+		//mark game start
+		state.markStarted();
+		
 		while (isRunning && !state.isFinished()) {
 			tick();
 			try {

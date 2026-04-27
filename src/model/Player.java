@@ -49,8 +49,9 @@ public class Player {
 		return hand.size();
 	}
 	
+	//returns a copy of the player's hand
 	public synchronized List<Card> getHand() {
-		return Collections.unmodifiableList(hand);
+		return Collections.unmodifiableList(new ArrayList<>(hand));
 	}
 	
 	public synchronized void clearHand() {
@@ -58,31 +59,48 @@ public class Player {
 	}
 	
 	public synchronized List<Card> discardPairs() {
-		List<Card> discarded = new ArrayList<>();
-		boolean hasPairs = true;
-		
-		while (hasPairs) {
-			hasPairs = false;
-			outer:
-				for (int i=0; i < hand.size(); i++) {
-					for (int j=i + 1; j < hand.size(); j++) {
-						if (hand.get(i).isPairWith(hand.get(j))) {
-							discarded.add(hand.remove(i));
-							discarded.add(hand.remove(j));
-							hasPairs = true;
-							break outer;
-						}
-					}
-				}
-		}
-		
-		//player is now out of the game
-		if (hand.isEmpty()) {
-			isOut = true;
-		}
-		
-		return discarded;
-	}
+        List<Card> discarded = new ArrayList<>();
+ 
+        boolean found = true;
+        while (found) {
+            found = false;
+ 
+            //snapshot so indices are stable during the pair search
+            List<Card> snapshot = new ArrayList<>(hand);
+ 
+            outerLoop:
+            for (int i = 0; i < snapshot.size(); i++) {
+                for (int j = i + 1; j < snapshot.size(); j++) {
+                    if (snapshot.get(i).isPairWith(snapshot.get(j))) {
+                        Card cardI = snapshot.get(i);
+                        Card cardJ = snapshot.get(j);
+ 
+                        //find actual positions in live hand by object reference
+                        int realI = hand.indexOf(cardI);
+                        int realJ = hand.lastIndexOf(cardJ);
+ 
+                        //guard: valid, distinct indices
+                        if (realI >= 0 && realJ >= 0 && realI != realJ) {
+                            //remove higher index first so lower stays valid
+                            int hi = Math.max(realI, realJ);
+                            int lo = Math.min(realI, realJ);
+                            discarded.add(hand.remove(hi));
+                            discarded.add(hand.remove(lo));
+                            found = true;
+                        }
+                        break outerLoop;
+                    }
+                }
+            }
+        }
+ 
+        if (hand.isEmpty()) {
+            isOut = true;
+        }
+ 
+        return discarded;
+    }
+
 	
 	
 	//Draw Rotation
