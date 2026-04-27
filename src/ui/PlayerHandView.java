@@ -100,6 +100,13 @@ public class PlayerHandView extends VBox{
 					);
 			default -> statusLabel.setText(isTarget ? "Draw here": "");
 		}
+		
+		//create card buttons
+		List<Card> hand = player.getHand();
+		for (int i = 0; i < hand.size(); i++) {
+		    Button btn = createCardButton(hand.get(i), i, isTarget);
+		    cardRow.getChildren().add(btn);
+		}
 	}
 	
 	private Button createCardButton(Card card, int index, boolean isTarget) {

@@ -153,24 +153,23 @@ public class GameView extends BorderPane{
 		deck.shuffle();
 		deck.dealTo(players);
 		
-		//discard initial pairs
-		for (Player p : players) {
-			List<model.Card> discarded = p.discardPairs();
-			if (!discarded.isEmpty()) {
-				//log initial discards
-			}
-		}
-		
 		//build game state
 		gameState = new GameState(players);
-		
-		for (Player p : players) {
-			gameState.log(p.getName() + " starts with " + p.handSize() + " cards");
-		}
 		
 		//listeners
 		gameState.addLogListener(eventLog::addEntry);
 		gameState.addStateChangeListener(this::refreshUI);
+		
+		for (Player p : players) {
+			List<model.Card> discarded = p.discardPairs();
+			if (!discarded.isEmpty()) {
+				gameState.log(p.getName() + " discarded " + (discarded.size() / 2) + " pair(s)");
+			}
+		}
+
+		for (Player p: players) {
+			gameState.log(p.getName() + " starts with " + p.handSize() + " cards");
+		}
 		
 		//build hand views
 		for (Player p : players) {

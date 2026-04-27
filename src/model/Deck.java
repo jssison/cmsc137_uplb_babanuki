@@ -37,6 +37,7 @@ public class Deck {
 		//deal cards to each player
 		for (Card card : cards) {
 			players.get(i % players.size()).addCard(card);
+			i++;
 		}
 	}
 	
