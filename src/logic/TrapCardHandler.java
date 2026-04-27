@@ -22,7 +22,7 @@ public class TrapCardHandler {
 			
 			List<Player> targets = state.getActivePlayers()
 					.stream()
-					.filter(p -> p != activator)
+					.filter(p -> p != activator && p.handSize() > 0)
 					.toList();
 			
 			if (targets.isEmpty()) { continue; }
