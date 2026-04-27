@@ -96,8 +96,8 @@ public class GameState {
 		List<Player> active = new ArrayList<>();
 		
 		for (Player p : players) {
-			//add player to active players if not out
-			if (!p.getIsOut()) { active.add(p); }
+			//add player to active players if not out and has cards
+			if (!p.getIsOut() && p.handSize() > 0) { active.add(p); }
 		}
 		
 		return active;
