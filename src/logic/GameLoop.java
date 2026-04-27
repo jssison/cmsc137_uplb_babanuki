@@ -141,7 +141,7 @@ public class GameLoop implements Runnable {
 		});
 	}
 	
-	private void stop() {
+	public void stop() {
 		isRunning = false;
 	}
 	
