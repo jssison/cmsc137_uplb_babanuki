@@ -379,12 +379,28 @@ public class GameView extends BorderPane{
         VBox standings = new VBox(4);
         standings.setAlignment(Pos.CENTER);
         for (Player p : gameState.getPlayers()) {
-            String status = p.getIsOut() ? "SAFE" : "HOLDS Queen " + p.handSize() + " card(s)";
-            Label row = new Label(p.getName() + "  -  " + status);
+        	boolean isLoser = (p == loser);
+        	boolean isSafe = p.getIsOut();
+        	
+        	String statusText;
+        	String color;
+
+        	if (isLoser) {
+        		statusText = "holds the Queen";
+        		color = "#e88888";
+        	} else if (isSafe) {
+        		statusText = "safe";
+        		color = "#7ab893";
+        	} else {
+        		statusText = "not the loser"; //idk ano dapat tawag sa kanila (not the loser but still has cards) (edge case)
+        		color = "#7ab893";
+        	}
+        	
+            Label row = new Label(p.getName() + "  -  " + statusText);
             row.setStyle(
                 "-fx-font-family: 'DM Mono', monospace;" +
                 "-fx-font-size: 12px;" +
-                "-fx-text-fill: " + (p.getIsOut() ? "#7ab893" : "#e88888") + ";"
+                "-fx-text-fill: " + color + ";"
             );
             standings.getChildren().add(row);
         }
