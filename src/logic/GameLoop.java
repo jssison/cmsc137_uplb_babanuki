@@ -9,7 +9,7 @@ import java.util.List;
 
 public class GameLoop implements Runnable {
 	//cooldowns (human has no cooldown)
-	private static final long AI_COOLDOWN_MS = 2500;
+	private static final long AI_COOLDOWN_MS = 4000;
 	private static final long HUMAN_COOLDOWN_MS = 0;
 	private static final long TICK_MS = 100;
 	
@@ -110,7 +110,9 @@ public class GameLoop implements Runnable {
 		
 		int index = (int)(Math.random() * target.handSize());
 		performDraw(ai, target, index);
-		ai.startCooldown(AI_COOLDOWN_MS);
+		
+		long variance = (long)(Math.random() * 1000);
+		ai.startCooldown(AI_COOLDOWN_MS + variance);
 	}
 	
 	//draw logic
