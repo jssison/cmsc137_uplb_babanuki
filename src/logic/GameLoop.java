@@ -7,8 +7,6 @@ import model.Player;
 
 import java.util.List;
 
-//TODO: Finish unfinished functions
-
 public class GameLoop implements Runnable {
 	//cooldowns (human has no cooldown)
 	private static final long AI_COOLDOWN_MS = 2500;
@@ -104,12 +102,43 @@ public class GameLoop implements Runnable {
 	
 	//AI tick
 	private void processAITick(Player ai) {
+		Player target = ai.getNextDrawTarget();
+		if (target == null || target.handSize() == 0) { return; }
 		
+		int index = (int)(Math.random() * target.handSize());
+		performDraw(ai, target, index);
+		ai.startCooldown(AI_COOLDOWN_MS);
 	}
 	
 	//draw logic
 	private void performDraw(Player drawer, Player target, int cardIndex) {
+		Card drawn = target.takeCard(cardIndex);
+		drawer.addCard(drawn);
 		
+		state.log(drawer.getName() + " drew a card from " + target.getName());
+		
+		//Discard pairs
+		List<Card> discarded = drawer.discardPairs();
+		
+		if (!discarded.isEmpty()) {
+			int pairs = discarded.size() / 2;
+			state.log(drawer.getName() + " discarded " + pairs + " pairs");
+			
+			//check if any trap cards were discarded
+			boolean hasTrap = discarded.stream().anyMatch(Card::isTrap);
+			if (hasTrap) {
+				//handle trap cards
+				TrapCardHandler.handleDiscards(discarded, drawer, state, targetChooser);
+			}
+		}
+		
+		drawer.advanceDrawPointer();
+		
+		//update UI
+		Platform.runLater(() -> {
+			state.checkEndConditions();
+			state.notifyStateChanged();
+		});
 	}
 	
 	private void stop() {
