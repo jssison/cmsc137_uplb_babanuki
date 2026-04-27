@@ -53,20 +53,42 @@ public class GameState {
 		//does nothing unless game has started
 		if (!started) { return; }
 		
+		//stop reevaluating when already finished
+		if (status == GameStatus.FINISHED) { return; }
+		
 		for (Player p : players) {
 			if (p.getIsOut() && winner == null) {
 				//first player out is winner
 				winner = p;
+				log(winner.getName() + " is safe");
 			}
 		}
 		
 		List<Player> stillInGame = getActivePlayers();
+		
+		//case 1: only one player still has cards
 		if (stillInGame.size() == 1) {
 			//set loser to last player in the game
 			loser = stillInGame.get(0);
+			log(loser.getName() + " is holding the Queen");
 			status = GameStatus.FINISHED;
-		} else if (stillInGame.isEmpty()) {
+			return;
+		}
+		
+		//case 2: all players are out (safety net)
+		if (stillInGame.isEmpty()) {
 			status = GameStatus.FINISHED;
+			return;
+		}
+		
+		//case 3: only one player has cards and no other active player
+		for (Player p : stillInGame) {
+			if (p.getNextDrawTarget() == null) {
+				loser = p;
+				log(loser.getName() + " is holding the Queen");
+				status = GameStatus.FINISHED;
+				return;
+			}
 		}
 	}
 	

@@ -157,23 +157,7 @@ public class TrapCardHandler {
 		GameState state, 
 		TargetChooser chooser
 	) {
-		for (Card c : discarded) {
-			if (!c.isTrap()) { continue; }
-			
-			List<Player> targets = state.getActivePlayers()
-					.stream()
-					.filter(p -> p != activator)
-					.toList();
-			
-			if (targets.isEmpty()) { continue; }
-			
-			//prevent UNO chain
-			switch (c.getTrap()) {
-				case SINGKO -> handleSingko(c, activator, targets, state, chooser);
-				case AMIS -> handleAmis(c, activator, targets, state, chooser);
-				default -> {}
-			}
-		}
+		//left intentionally empty to supress trap effects chaining
 	}
 	
 	//target chooser interface
