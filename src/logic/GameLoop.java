@@ -8,11 +8,13 @@ import model.Player;
 import java.util.List;
 
 public class GameLoop implements Runnable {
-	//cooldowns (human has no cooldown)
+	//cooldowns
 	private static final long AI_COOLDOWN_MS = 4000;
-	private static final long HUMAN_COOLDOWN_MS = 0;
+	private static final long HUMAN_COOLDOWN_MS = 1500; //too op if no cooldown
 	private static final long TICK_MS = 100;
 	
+	private static final long AFK_TIMEOUT_MS = 15000; //for players taking too long to draw
+	private long humanReadyTimestamp = 0;
 	private final GameState state;
 	private volatile boolean isRunning = true;
 	
@@ -77,8 +79,28 @@ public class GameLoop implements Runnable {
 	
 	//human tick
 	private void processHumanTick(Player human) {
+		if (humanReadyTimestamp == 0) {
+	        humanReadyTimestamp = System.currentTimeMillis();
+	    }
+		
 		PendingHumanDraw pending = pendingHumanDraw;
-		if (pending == null) { return; }
+		if (pending == null) {
+			if (System.currentTimeMillis() - humanReadyTimestamp > AFK_TIMEOUT_MS) {
+				state.log(human.getName() + "took too long! Auto-drawing...");
+				
+				Player target = human.getNextDrawTarget();
+	            if (target != null && target.handSize() > 0) {
+	                // Force a random draw just like the AI
+	                int randomCardIndex = (int)(Math.random() * target.handSize());
+	                performDraw(human, target, randomCardIndex);
+	            }
+	            
+	            // Reset timer and put on cooldown
+	            humanReadyTimestamp = 0;
+	            human.startCooldown(HUMAN_COOLDOWN_MS);
+			}
+			return; 
+		}
 		
 		pendingHumanDraw = null; //consume draw
 		
