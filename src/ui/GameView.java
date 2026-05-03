@@ -234,8 +234,14 @@ public class GameView extends BorderPane{
 	private void refreshAllHands() {
 		Player target = player.getIsOut() ? null : player.getNextDrawTarget();
 		
+		boolean humanCanDraw = player.canDraw();
+		
 		for (PlayerHandView view : handViews) {
-			boolean isTarget = !view.getPlayer().getIsHuman() && view.getPlayer() == target && !player.getIsOut();
+			boolean isTarget = !view.getPlayer().getIsHuman() 
+                    && view.getPlayer() == target 
+                    && !player.getIsOut()
+                    && humanCanDraw; 
+                    
 			view.refresh(isTarget);
 		}
 	}
