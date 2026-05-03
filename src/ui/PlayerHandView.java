@@ -28,6 +28,9 @@ public class PlayerHandView extends VBox{
 	
 	private Consumer<Integer> onCardClicked;
 	
+	private java.util.List<Card> lastHandSnapshot = new java.util.ArrayList<>();
+    private boolean lastTargetStatus = false;
+    
 	//constructor
 	public PlayerHandView(Player player, boolean revealCards) {
 		this.player = player;
@@ -78,36 +81,45 @@ public class PlayerHandView extends VBox{
 	//refresh card display
 	//isTarget = someone is about to draw from this player
 	public void refresh(boolean isTarget) {
-		//clear card row first
-		cardRow.getChildren().clear();
-		
-		//rebuild
-		nameLabel.setText(player.getName());
-		countLabel.setText("(" + player.handSize() + " cards)");
-		
-		if (player.getIsOut()) {
-			statusLabel.setText("SAFE");
-			statusLabel.setStyle(statusLabel.getStyle().replace("#7ab893", "#4dc880"));
-			setStyle(getStyle() + "-fx-opacity: 0.5;");
-			return;
-		}
-		
-		//set status label based on draw state
-		switch (player.getDrawState()) {
-			case SKIPPED -> statusLabel.setText("SKIPPED");
-			case COOLDOWN -> statusLabel.setText(
-						"COOLDOWN " + (player.getRemainingCooldown() / 1000 + 1) + "s"
-					);
-			default -> statusLabel.setText(isTarget ? "Draw here": "");
-		}
-		
-		//create card buttons
-		List<Card> hand = player.getHand();
-		for (int i = 0; i < hand.size(); i++) {
-		    Button btn = createCardButton(hand.get(i), i, isTarget);
-		    cardRow.getChildren().add(btn);
-		}
-	}
+        // rebuild
+        nameLabel.setText(player.getName());
+        countLabel.setText("(" + player.handSize() + " cards)");
+        
+        if (player.getIsOut()) {
+            statusLabel.setText("SAFE");
+            statusLabel.setStyle(statusLabel.getStyle().replace("#7ab893", "#4dc880"));
+            setStyle(getStyle() + "-fx-opacity: 0.5;");
+            cardRow.getChildren().clear(); // Safely clear cards
+            return;
+        }
+        
+        //set status label based on draw state
+        switch (player.getDrawState()) {
+            case SKIPPED -> statusLabel.setText("SKIPPED");
+            case COOLDOWN -> statusLabel.setText(
+                        "COOLDOWN " + (player.getRemainingCooldown() / 1000 + 1) + "s"
+                    );
+            default -> statusLabel.setText(isTarget ? "Draw here": "");
+        }
+        
+        // 2. ONLY REBUILD CARDS IF THEY ACTUALLY CHANGED
+        List<Card> currentHand = player.getHand();
+        boolean handChanged = !lastHandSnapshot.equals(currentHand);
+        boolean targetChanged = (lastTargetStatus != isTarget);
+        
+        if (handChanged || targetChanged) {
+            cardRow.getChildren().clear();
+            
+            for (int i = 0; i < currentHand.size(); i++) {
+                Button btn = createCardButton(currentHand.get(i), i, isTarget);
+                cardRow.getChildren().add(btn);
+            }
+            
+            // Save the current state so it doesn't rebuild next time
+            lastHandSnapshot = new java.util.ArrayList<>(currentHand);
+            lastTargetStatus = isTarget;
+        }
+    }
 	
 	private Button createCardButton(Card card, int index, boolean isTarget) {
 		Button btn = new Button();
