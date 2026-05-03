@@ -42,7 +42,11 @@ public class Player {
 	//returns the hand index of the taken card
 	//used for when other players draw from this player's hand
 	public synchronized Card takeCard(int index) {
-		return hand.remove(index);
+		Card taken = hand.remove(index);
+	    if (hand.isEmpty()) {
+	        isOut = true; // Mark safe immediately if last card is stolen
+	    }
+	    return taken;
 	}
 	
 	public synchronized int handSize() {
