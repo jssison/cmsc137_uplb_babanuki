@@ -16,8 +16,6 @@ import javafx.util.Duration;
 //util imports
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 
 //class imports
 import logic.GameLoop;
@@ -259,69 +257,59 @@ public class GameView extends BorderPane{
 	
 	//trap card target chooser
 	private TrapCardHandler.TargetChooser buildTargetChooser() {
-		return (prompt, options) -> {
-			//only call chooser if player is human
-			if (options.isEmpty()) { return null; }
-			
-			CountDownLatch latch = new CountDownLatch(1);
-			AtomicReference<Player> chosen = new AtomicReference<>(options.get(0));
-			
-			Platform.runLater(() -> showTargetDialog(prompt, options, chosen, latch));
-			
-			try {
-				latch.await();
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-			}
-			
-			return chosen.get();
-		};
+	    return (prompt, options, onChosen) -> {
+	    	//only call chooser if player is human
+	    	if (options.isEmpty()) return;
+	        
+	        Platform.runLater(() -> showTargetDialog(prompt, options, onChosen));
+	    };
 	}
-	
-	private void showTargetDialog(String prompt, List<Player> options, AtomicReference<Player> result, CountDownLatch latch) {
-		VBox dialog = new VBox(12);
-		dialog.setAlignment(Pos.CENTER);
-		dialog.setPadding(new Insets(28));
-		dialog.setMaxWidth(360);
-		dialog.setStyle(
-			"-fx-background-color: #1a3a2a;" +
-			"-fx-border-color: #e8c87a;" +
-			"-fx-border-width: 2;" +
-			"-fx-border-radius: 12;" +
-			"-fx-background-radius: 12;"
-		);
-		
-		Label promptLabel = new Label(prompt);
-		promptLabel.setWrapText(true);
-		promptLabel.setAlignment(Pos.CENTER);
-		promptLabel.setStyle(
-			"-fx-font-family: 'Playfair Display', serif;" +
-			"-fx-font-size: 15px;" +
-			"-fx-font-weight: bold;" +
-			"-fx-text-fill: #e8c87a;" +
-			"-fx-text-alignment: center;"
-		);
-		
-		dialog.getChildren().add(promptLabel);
-		
-		//player options to target for trap cards
-		for (Player p : options) {
-			Button btn = makeButton(
-				p.getName() + " (" + p.handSize() + " cards)",
-				"#2e5a44", "#e8d8a0"
-			);
-			btn.setPrefWidth(280);
-			btn.setOnAction(e -> {
-				result.set(p);
-				hideOverlay();
-				latch.countDown();
-			});
-			
-			dialog.getChildren().add(btn);
-		}
-		
-		overlayPane.getChildren().setAll(dialog);
-		showOverlay();
+
+	private void showTargetDialog(String prompt, List<Player> options, java.util.function.Consumer<Player> onChosen) {
+	    VBox dialog = new VBox(12);
+	    dialog.setAlignment(Pos.CENTER);
+	    dialog.setPadding(new Insets(28));
+	    dialog.setMaxWidth(360);
+	    dialog.setStyle(
+	        "-fx-background-color: #1a3a2a;" +
+	        "-fx-border-color: #e8c87a;" +
+	        "-fx-border-width: 2;" +
+	        "-fx-border-radius: 12;" +
+	        "-fx-background-radius: 12;"
+	    );
+	    
+	    Label promptLabel = new Label(prompt);
+	    promptLabel.setWrapText(true);
+	    promptLabel.setAlignment(Pos.CENTER);
+	    promptLabel.setStyle(
+	        "-fx-font-family: 'Playfair Display', serif;" +
+	        "-fx-font-size: 15px;" +
+	        "-fx-font-weight: bold;" +
+	        "-fx-text-fill: #e8c87a;" +
+	        "-fx-text-alignment: center;"
+	    );
+	    
+	    dialog.getChildren().add(promptLabel);
+	    
+	    //player options to target for trap cards
+	    for (Player p : options) {
+	        Button btn = makeButton(
+        		p.getName() + " (" + p.handSize() + " cards)", 
+        		"#2e5a44", "#e8d8a0"
+    		);
+	        btn.setPrefWidth(280);
+	        
+	        // When the button is clicked, hide the UI and fire the callback
+	        btn.setOnAction(e -> {
+	            hideOverlay();
+	            onChosen.accept(p); //executes the logic back in TrapCardHandler!
+	        });
+	        
+	        dialog.getChildren().add(btn);
+	    }
+	    
+	    overlayPane.getChildren().setAll(dialog);
+	    showOverlay();
 	}
 	
 	private void showGameOver() {

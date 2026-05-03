@@ -11,132 +11,147 @@ import java.util.List;
 
 public class TrapCardHandler {
 	public static void handleDiscards(
-		List<Card> discarded,
-		Player activator,
-		GameState state,
-		TargetChooser targetChooser
+	    List<Card> discarded,
+	    Player activator,
+	    GameState state,
+	    TargetChooser targetChooser
 	) {
-		
-		for (Card c : discarded) {
-			if (!c.isTrap()) { continue; }
-			
-			List<Player> targets = state.getActivePlayers()
-					.stream()
-					.filter(p -> p != activator && p.handSize() > 0)
-					.toList();
-			
-			if (targets.isEmpty()) { continue; }
-			
-			switch (c.getTrap()) {
-				case SINGKO -> handleSingko(c, activator, targets, state, targetChooser);
-				case UNO -> handleUno(c, activator, targets, state, targetChooser);
-				case AMIS -> handleAmis(c, activator, targets, state, targetChooser);
-				default -> {}
-			}
-		}
+	    
+	    // track triggered traps to prevent duplicate effects from a single pair
+	    java.util.List<Card.Trap> triggered = new java.util.ArrayList<>();
+	    
+	    for (Card c : discarded) {
+	        if (!c.isTrap()) continue;
+	        if (triggered.contains(c.getTrap())) continue; // skip if already triggered
+	        
+	        triggered.add(c.getTrap()); // mark as triggered
+	        
+	        List<Player> targets = state.getActivePlayers()
+	        		.stream()
+	                .filter(p -> p != activator && p.handSize() > 0)
+	                .toList();
+	        
+	        if (targets.isEmpty()) continue;
+	        
+	        switch (c.getTrap()) {
+	            case SINGKO -> handleSingko(c, activator, targets, state, targetChooser);
+	            case UNO -> handleUno(c, activator, targets, state, targetChooser);
+	            case AMIS -> handleAmis(c, activator, targets, state, targetChooser);
+	            default -> {}
+	        }
+	    }
 	}
 	
 	//Trap card handlers
 	
 	//SINGKO: Player chooses another player to skip their next draw
 	private static void handleSingko(
-		Card card,
-		Player activator,
-		List<Player> targets,
-		GameState state,
-		TargetChooser chooser
-	) {
-		Player target;
-		if (activator.getIsHuman()) {
-			target = chooser.choose("SINGKO! Choose a player to skip: ", targets);
-		} else {
-			//remove this for multiplayer
-			//for bot/AI
-			//choose player with the fewest cards
-			target = targets.stream()
-					.min((a, b) -> Integer.compare(a.handSize(), b.handSize()))
-					.orElse(targets.get(0));
-		}
-		
-		target.applySkip();
-		state.log("SINGKO! " + activator.getName()
-			+ " skips " + target.getName() + "'s next draw."
-		);
-		state.notifyStateChanged();
+	    Card card,
+	    Player activator,
+	    List<Player> targets,
+	    GameState state,
+	    TargetChooser chooser
+    ) {
+	    
+	    if (activator.getIsHuman()) {
+	        // callback
+	        chooser.choose("SINGKO! Choose a player to skip: ", targets, target -> {
+	            target.applySkip();
+	            state.log("SINGKO! " + activator.getName() + " skips " + target.getName() + "'s next draw.");
+	            state.notifyStateChanged();
+	        });
+	    } else {
+	    	//remove this for multiplayer
+	        //for bot/AI
+	    	//choose player with the fewest cards
+	        Player target = targets.stream()
+	                .min((a, b) -> Integer.compare(a.handSize(), b.handSize()))
+	                .orElse(targets.get(0));
+	        target.applySkip();
+	        state.log("SINGKO! " + activator.getName()
+	        	+ " skips " + target.getName() + "'s next draw."
+        	);
+	        state.notifyStateChanged();
+	    }
 	}
 	
 	//UNO: Steal one card from a chosen player
 	private static void handleUno(
-		Card card,
-		Player activator,
-		List<Player> targets,
-		GameState state,
-		TargetChooser chooser
-	) {
-		Player target;
-		if (activator.getIsHuman()) {
-			target = chooser.choose("UNO! Choose a player to steal from: ", targets);
-		} else {
-			//remove this for multiplayer
+	    Card card,
+	    Player activator,
+	    List<Player> targets,
+	    GameState state,
+	    TargetChooser chooser
+	    ) {
+	    
+	    if (activator.getIsHuman()) {
+	        chooser.choose("UNO! Choose a player to steal from: ", targets, target -> {
+	            executeUnoSteal(activator, target, state, chooser);
+	        });
+	    } else {
+	    	//remove this for multiplayer
 			//for bot/AI
 			//choose player with the most cards
-			target = targets.stream()
-					.max((a, b) -> Integer.compare(a.handSize(), b.handSize()))
-					.orElse(targets.get(0));
-		}
-		
-		if (target.handSize() == 0) {
-			state.log("UNO! " + target.getName() + " has no cards to steal.");
-			return;
-		}
-		
-		//pick a card to steal
-		int index = (int)(Math.random() * target.handSize());
-		Card stolen = target.takeCard(index);
-		activator.addCard(stolen);
-		
-		state.log("UNO! " + activator.getName()
-			+ " stole a card from " + target.getName() + "."
-		);
-		
-		List<Card> newDiscards = activator.discardPairs();
-		if (!newDiscards.isEmpty()) {
-			state.log(activator.getName() + " discards "
-					+ (newDiscards.size() / 2) + " pair(s) after UNO steal."
-			);
-			handleDiscardsNoChain(newDiscards, activator, state, chooser);
-		}
-		
-		state.notifyStateChanged();
-		
+	        Player target = targets.stream()
+	                .max((a, b) -> Integer.compare(a.handSize(), b.handSize()))
+	                .orElse(targets.get(0));
+	                
+	        executeUnoSteal(activator, target, state, chooser);
+	    }
+	}
+
+	// helper method holding effect logic
+	private static void executeUnoSteal(Player activator, Player target, GameState state, TargetChooser chooser) {
+	    if (target.handSize() == 0) {
+	        state.log("UNO! " + target.getName() + " has no cards to steal.");
+	        return;
+	    }
+	    
+	    // Pick a card to steal
+	    int index = (int)(Math.random() * target.handSize());
+	    Card stolen = target.takeCard(index);
+	    activator.addCard(stolen);
+	    
+	    state.log("UNO! " + activator.getName() + " stole a card from " + target.getName() + ".");
+	    
+	    // Check if the stolen card created a new pair
+	    List<Card> newDiscards = activator.discardPairs();
+	    if (!newDiscards.isEmpty()) {
+	        state.log(activator.getName() + " discards " + (newDiscards.size() / 2) + " pair(s) after UNO steal.");
+	        handleDiscardsNoChain(newDiscards, activator, state, chooser);
+	    }
+	    
+	    state.notifyStateChanged();
 	}
 	
 	//AMIS: swap hands with a chose player
 	private static void handleAmis(
-		Card card,
-		Player activator,
-		List<Player> targets,
-		GameState state,
-		TargetChooser chooser
-	) {
-		Player target;
-		if (activator.getIsHuman()) {
-			target = chooser.choose("AMIS! Choose a player to swap hands with: ", targets);
-		} else {
-			//remove this for multiplayer
+	    Card card,
+	    Player activator,
+	    List<Player> targets,
+	    GameState state,
+	    TargetChooser chooser
+    ) {
+	    
+	    if (activator.getIsHuman()) {
+	        chooser.choose("AMIS! Choose a player to swap hands with: ", targets, target -> {
+	            swapHands(activator, target);
+	            state.log("AMIS! " + activator.getName() + " swapped hands with " + target.getName() + ".");
+	            state.notifyStateChanged();
+	        });
+	    } else {
+	    	//remove this for multiplayer
 			//for bot/AI
 			//choose player with the fewest cards compared to the activator
-			target = targets.stream()
-					.filter(p -> p.handSize() < activator.handSize())
-					.min((a,b) -> Integer.compare(a.handSize(), b.handSize()))
-					.orElse(targets.get(0));
-		}
-		
-		swapHands(activator, target);
-		state.log("AMIS! " + activator.getName()
-			+ " swapped hands with " + target.getName() + "."
-		);
-		state.notifyStateChanged();
+	        Player target = targets.stream()
+	                .filter(p -> p.handSize() < activator.handSize())
+	                .min((a,b) -> Integer.compare(a.handSize(), b.handSize()))
+	                .orElse(targets.get(0));
+	                
+	        swapHands(activator, target);
+	        state.log("AMIS! " + activator.getName() + " swapped hands with " + target.getName() + ".");
+	        state.notifyStateChanged();
+	    }
 	}
 	
 	//helpers
@@ -164,6 +179,6 @@ public class TrapCardHandler {
 	//humans can pick via dialog
 	@FunctionalInterface
 	public interface TargetChooser {
-		Player choose(String prompt, List<Player> options);
+	    void choose(String prompt, List<Player> options, java.util.function.Consumer<Player> onChosen);
 	}
 }
