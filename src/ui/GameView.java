@@ -20,7 +20,10 @@ import javafx.util.Duration;
 
 //util imports
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 
 //class imports
 import logic.GameLoop;
@@ -214,8 +217,8 @@ public class GameView extends StackPane {
 		playerPlates.clear();
 		
 		//randomize avatar icons
-		java.util.List<String> availableIcons = new java.util.ArrayList<>(java.util.Arrays.asList(ANIMAL_ICONS));
-		java.util.Collections.shuffle(availableIcons);
+		List<String> availableIcons = new ArrayList<>(Arrays.asList(ANIMAL_ICONS));
+		Collections.shuffle(availableIcons);
 		
 		// build hand views, plates, and place them in the Round Table seats
 		for (int i = 0; i < players.size(); i++) {
@@ -364,7 +367,7 @@ public class GameView extends StackPane {
 	    };
 	}
 
-	private void showTargetDialog(String prompt, List<Player> options, java.util.function.Consumer<Player> onChosen) {
+	private void showTargetDialog(String prompt, List<Player> options, Consumer<Player> onChosen) {
 	    VBox dialog = new VBox(12);
 	    dialog.setAlignment(Pos.CENTER);
 	    dialog.setPadding(new Insets(28));
@@ -412,94 +415,85 @@ public class GameView extends StackPane {
 	}
 	
 	private void showGameOver() {
-		VBox panel = new VBox(16);
-		panel.setAlignment(Pos.CENTER);
-		panel.setPadding(new Insets(36));
-		panel.setMaxWidth(400);
-		panel.setStyle(
-			"-fx-background-color: #1a3a2a;" + 
-			"-fx-border-color: #e8c87a;" +
+		VBox leaderboardBox = new VBox(15);
+		leaderboardBox.setAlignment(Pos.CENTER);
+		leaderboardBox.setMaxWidth(400);
+		leaderboardBox.setMaxHeight(Region.USE_PREF_SIZE);
+		leaderboardBox.setPadding(new Insets(30, 40, 30, 40));
+		leaderboardBox.setStyle(
+			"-fx-background-color: #0d1f16;" +
+			"-fx-border-color: #e8c87a;" + // Gold border for the finale
 			"-fx-border-width: 2;" +
-			"-fx-border-radius: 14;" +
-			"-fx-background-radius: 14;"
+			"-fx-border-radius: 12;" +
+			"-fx-background-radius: 12;" +
+			"-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.8), 20, 0, 0, 10);"
 		);
 		
+		// 2. The Title
 		Label title = new Label("GAME OVER");
-		title.setStyle(
-			"-fx-font-family: 'Playfair Display', serif;" +
-			"-fx-font-size: 26px;" +
-			"-fx-font-weight: bold;" +
-			"-fx-text-fill: #e8c87a;"
-		);
+		title.setStyle("-fx-font-family: 'Playfair Display', serif; -fx-font-size: 32px; -fx-font-weight: bold; -fx-text-fill: #e8c87a;");
+		leaderboardBox.getChildren().add(title);
 		
-		Player winner = gameState.getWinner();
-		Player loser = gameState.getLoser();
+		// 3. Generate the Ranks dynamically from the backend!
+		List<Player> ranks = gameState.getLeaderboard();
 		
-		VBox results = new VBox(8);
-		results.setAlignment(Pos.CENTER);
-		
-		if (winner != null) {
-			Label winLabel = new Label(winner.getName() + " won");
-			winLabel.setStyle(
-				"-fx-font-family: 'DM sans', sans-serif;" +
-				"-fx-font-size: 16px;" +
-				"-fx-text-fill: #4dc880;" +
-				"-fx-font-weight: bold;"
-			);
-			results.getChildren().add(winLabel);
+		for (int i = 0; i < ranks.size(); i++) {
+			Player p = ranks.get(i);
+			
+			// Setup the rank row
+			HBox row = new HBox(15);
+			row.setAlignment(Pos.CENTER_LEFT);
+			row.setPadding(new Insets(10, 20, 10, 20));
+			row.setStyle("-fx-background-color: #1a3a2a; -fx-background-radius: 8;");
+			
+			Label rankLabel = new Label();
+			rankLabel.setPrefWidth(50);
+			rankLabel.setStyle("-fx-font-family: 'DM Mono', monospace; -fx-font-size: 18px; -fx-font-weight: bold;");
+			
+			Label nameLabel = new Label(p.getName());
+			nameLabel.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 16px; -fx-text-fill: #fdf6e3;");
+			
+			// Styling based on placement
+			if (i == 0) {
+				rankLabel.setText("1ST");
+				rankLabel.setStyle(rankLabel.getStyle() + "-fx-text-fill: #e8c87a;"); // Gold
+				row.setStyle("-fx-background-color: #2e6644; -fx-background-radius: 8; -fx-border-color: #e8c87a; -fx-border-radius: 8;");
+			} else if (i == ranks.size() - 1) {
+				rankLabel.setText("LSR"); // Loser / Babanuki
+				rankLabel.setStyle(rankLabel.getStyle() + "-fx-text-fill: #e05555;"); // Red
+				nameLabel.setText(p.getName() + " (Babanuki!)");
+				nameLabel.setStyle(nameLabel.getStyle() + "-fx-text-fill: #e05555;");
+			} else {
+				// THE FIX: Properly handle 2nd, 3rd, and everything else
+				if (i == 1) {
+					rankLabel.setText("2ND");
+				} else if (i == 2) {
+					rankLabel.setText("3RD");
+				} else {
+					rankLabel.setText((i + 1) + "TH");
+				}
+				rankLabel.setStyle(rankLabel.getStyle() + "-fx-text-fill: #8ca898;"); // Silver/Gray
+			}
+			
+			// Push name to the right
+			Region spacer = new Region();
+			HBox.setHgrow(spacer, Priority.ALWAYS);
+			
+			row.getChildren().addAll(rankLabel, spacer, nameLabel);
+			leaderboardBox.getChildren().add(row);
 		}
 		
-		if (loser != null) {
-			Label loseLabel = new Label(loser.getName() + " has the Queen");
-            loseLabel.setStyle(
-                "-fx-font-family: 'DM Sans', sans-serif;" +
-                "-fx-font-size: 15px;" +
-                "-fx-text-fill: #e05555;"
-            );
-            results.getChildren().add(loseLabel);
-		}
+		// 4. Play Again Button
+		Button playAgainBtn = makeButton("Play Again", "#2e6644", "#e8c87a");
+		playAgainBtn.setOnAction(e -> startNewGame());
+		VBox.setMargin(playAgainBtn, new Insets(15, 0, 0, 0));
 		
-		//for standings
-		//show each player's remaining cards
-		Rectangle divider = new Rectangle(300, 1, Color.web("#2e6644"));
-		 
-        VBox standings = new VBox(4);
-        standings.setAlignment(Pos.CENTER);
-        for (Player p : gameState.getPlayers()) {
-        	boolean isLoser = (p == loser);
-        	boolean isSafe = p.getIsOut();
-        	
-        	String statusText;
-        	String color;
-
-        	if (isLoser) {
-        		statusText = "holds the Queen";
-        		color = "#e88888";
-        	} else if (isSafe) {
-        		statusText = "safe";
-        		color = "#7ab893";
-        	} else {
-        		statusText = "not the loser"; //idk ano dapat tawag sa kanila (not the loser but still has cards) (edge case)
-        		color = "#7ab893";
-        	}
-        	
-            Label row = new Label(p.getName() + "  -  " + statusText);
-            row.setStyle(
-                "-fx-font-family: 'DM Mono', monospace;" +
-                "-fx-font-size: 12px;" +
-                "-fx-text-fill: " + color + ";"
-            );
-            standings.getChildren().add(row);
-        }
- 
-        Button playAgain = makeButton("Play Again", "#2e6644", "#e8c87a");
-        playAgain.setPrefWidth(200);
-        playAgain.setOnAction(e -> startNewGame());
- 
-        panel.getChildren().addAll(title, results, divider, standings, playAgain);
- 
-        overlayPane.getChildren().setAll(panel);
-        showOverlay();
+		leaderboardBox.getChildren().add(playAgainBtn);
+		
+		// 5. Slap it onto your overlay pane!
+		overlayPane.getChildren().clear();
+		overlayPane.getChildren().add(leaderboardBox);
+		overlayPane.setVisible(true);
 	}
 	
 	//overlay helpers
@@ -561,7 +555,7 @@ public class GameView extends StackPane {
 		private final Player player;
 		private final Label countLabel;
 		private final ImageView avatarView;
-		private final Label statusLabel; // NEW: Replaced the dot with a text label!
+		private final Label statusLabel;
 
 		public PlayerPlate(Player player, String imagePath) {
 			this.player = player;
@@ -569,7 +563,7 @@ public class GameView extends StackPane {
 			//timer
 			this.statusLabel = new Label();
 			this.statusLabel.setStyle("-fx-font-family: 'DM Mono', monospace; -fx-font-weight: bold; -fx-font-size: 13px;");
-			this.statusLabel.setPrefWidth(50); // Fixed width prevents the whole plate from jittering
+			this.statusLabel.setPrefWidth(50); 
 			this.statusLabel.setAlignment(Pos.CENTER_RIGHT);
 
 			Image avatarImage = new Image(getClass().getResourceAsStream(imagePath));

@@ -22,7 +22,8 @@ public class GameState {
 	//UI stuff (listeners)
 	private final List<Consumer<String>> logListeners = new CopyOnWriteArrayList<>();
 	private final List<Runnable> stateChangeListeners = new CopyOnWriteArrayList<>();
-	
+
+	private final List<Player> leaderboard = new ArrayList<>();
 	//constructor
 	public GameState(List<Player> players) {
 		this.players = new ArrayList<>(players);
@@ -50,46 +51,60 @@ public class GameState {
 	
 	//win or lose detection
 	public synchronized void checkEndConditions() {
-		//does nothing unless game has started
+		// does nothing unless game has started
 		if (!started) { return; }
 		
-		//stop reevaluating when already finished
+		// stop reevaluating when already finished
 		if (status == GameStatus.FINISHED) { return; }
 		
+		// add players in order to leaderboard
 		for (Player p : players) {
-			if (p.getIsOut() && winner == null) {
-				//first player out is winner
-				winner = p;
-				log(winner.getName() + " is safe");
+			if (p.getIsOut() && !leaderboard.contains(p)) {
+				leaderboard.add(p);
+				log(p.getName() + " finished in " + getRankString(leaderboard.size()) + " place!");
 			}
 		}
 		
 		List<Player> stillInGame = getActivePlayers();
 		
-		//case 1: only one player still has cards
+		// case 1: only one player still has cards
 		if (stillInGame.size() == 1) {
-			//set loser to last player in the game
-			loser = stillInGame.get(0);
-			log(loser.getName() + " is holding the Queen");
+			Player loser = stillInGame.get(0);
+			if (!leaderboard.contains(loser)) {
+				leaderboard.add(loser);
+				log(loser.getName() + " is holding the Queen (Babanuki!)");
+			}
 			status = GameStatus.FINISHED;
 			return;
 		}
 		
-		//case 2: all players are out (safety net)
+		// case 2: all players are out (safety net)
 		if (stillInGame.isEmpty()) {
 			status = GameStatus.FINISHED;
 			return;
 		}
 		
-		//case 3: only one player has cards and no other active player
+		// case 3: stuck with no targets (your excellent safety net for sequential mode)
 		for (Player p : stillInGame) {
 			if (p.getNextDrawTarget() == null) {
-				loser = p;
-				log(loser.getName() + " is holding the Queen");
+				if (!leaderboard.contains(p)) {
+					leaderboard.add(p);
+					log(p.getName() + " is holding the Queen");
+				}
 				status = GameStatus.FINISHED;
 				return;
 			}
 		}
+	}
+
+	// Helper method to make the game logs look professional
+	private String getRankString(int rank) {
+		return switch(rank) {
+			case 1 -> "1st";
+			case 2 -> "2nd";
+			case 3 -> "3rd";
+			default -> rank + "th";
+		};
 	}
 	
 	public List<Player> getActivePlayers() {
@@ -103,6 +118,10 @@ public class GameState {
 		return active;
 	}
 	
+	
+	public List<Player> getLeaderboard(){
+		return leaderboard;
+	}
 	//listeners
 	public void addLogListener(Consumer<String> listener) {
 		logListeners.add(listener);

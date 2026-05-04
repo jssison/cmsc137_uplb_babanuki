@@ -8,6 +8,7 @@ import model.Player;
 //util imports
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 public class TrapCardHandler {
 	public static void handleDiscards(
@@ -18,7 +19,7 @@ public class TrapCardHandler {
 	) {
 	    
 	    // track triggered traps to prevent duplicate effects from a single pair
-	    java.util.List<Card.Trap> triggered = new java.util.ArrayList<>();
+	    List<Card.Trap> triggered = new ArrayList<>();
 	    
 	    for (Card c : discarded) {
 	        if (!c.isTrap()) continue;
@@ -179,6 +180,6 @@ public class TrapCardHandler {
 	//humans can pick via dialog
 	@FunctionalInterface
 	public interface TargetChooser {
-	    void choose(String prompt, List<Player> options, java.util.function.Consumer<Player> onChosen);
+	    void choose(String prompt, List<Player> options, Consumer<Player> onChosen);
 	}
 }

@@ -7,6 +7,7 @@ import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
 
 //util imports
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -29,7 +30,7 @@ public class PlayerHandView extends VBox {
 	
 	private Consumer<Integer> onCardClicked;
 	
-	private java.util.List<Card> lastHandSnapshot = new java.util.ArrayList<>();
+	private List<Card> lastHandSnapshot = new ArrayList<>();
 	private boolean lastTargetStatus = false;
 	
 	//constructor
@@ -109,7 +110,7 @@ public class PlayerHandView extends VBox {
 			}
 			
 			//save the current state so it doesn't rebuild next time
-			lastHandSnapshot = new java.util.ArrayList<>(currentHand);
+			lastHandSnapshot = new ArrayList<>(currentHand);
 			lastTargetStatus = isTarget;
 		}
 	}
