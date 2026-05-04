@@ -490,10 +490,8 @@ public class GameView extends StackPane {
 		
 		leaderboardBox.getChildren().add(playAgainBtn);
 		
-		// 5. Slap it onto your overlay pane!
-		overlayPane.getChildren().clear();
-		overlayPane.getChildren().add(leaderboardBox);
-		overlayPane.setVisible(true);
+		overlayPane.getChildren().setAll(leaderboardBox);
+		showOverlay();
 	}
 	
 	//overlay helpers
