@@ -36,6 +36,7 @@ public class PlayerHandView extends VBox{
 		this.player = player;
 		this.revealCards = revealCards;
 		
+		setMaxWidth(600);
 		setSpacing(6);
 		setPadding(new Insets(10));
 		setStyle(

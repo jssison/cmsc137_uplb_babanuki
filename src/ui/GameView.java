@@ -24,16 +24,21 @@ import model.Deck;
 import model.GameState;
 import model.Player;
 
-
-//main UI layout
-public class GameView extends BorderPane{
+//main UI layout - REFACTORED TO STACKPANE FOR HUD OVERLAY
+public class GameView extends StackPane {
 	//game state
 	private GameState gameState;
 	private GameLoop gameLoop;
 	private Thread gameThread;
 	
+	//layer components
+	private final BorderPane tableLayer = new BorderPane();
+	private final AnchorPane hudLayer = new AnchorPane();
+	
 	//ui components
-	private final VBox aiHandsArea = new VBox(10);
+	private final HBox topSeat = new HBox();
+	private final VBox leftSeat = new VBox();
+	private final VBox rightSeat = new VBox();
 	private final VBox humanArea = new VBox(8);
 	private final EventLog eventLog = new EventLog();
 	private final Label turnLabel = new Label("Click a card to draw");
@@ -62,64 +67,84 @@ public class GameView extends BorderPane{
 		//title bar
 		titleLabel.setStyle(
 			"-fx-font-family: 'Playfair Display', serif;" +
-			"-fx-font-size: 22px;" +
+			"-fx-font-size: 20px;" +
 			"-fx-font-weight: bold;" +
-			"-fx-text-fill: #e8c87a;" +
-			"-fx-padding: 12 20 8 20;"
+			"-fx-text-fill: #e8c87a;"
 		);
 		
 		Button newGameBtn = makeButton("New Game", "#2e6644", "#e8c87a");
 		newGameBtn.setOnAction(e -> startNewGame());
 		
-		HBox topBar = new HBox(newGameBtn);
-		topBar.setAlignment(Pos.CENTER_RIGHT);
-		topBar.setPadding(new Insets(8, 16, 0, 16));
+		// add spacer between title text and button
+		Region headerSpacer = new Region();
+		HBox.setHgrow(headerSpacer, Priority.ALWAYS);
 		
-		VBox header = new VBox(0, titleLabel, topBar);
+		HBox header = new HBox(16, titleLabel, headerSpacer, newGameBtn);
+		header.setAlignment(Pos.CENTER);
+		header.setPadding(new Insets(10, 20, 10, 20));
 		header.setStyle(
 			"-fx-background-color: #0d1f16;" +
 			"-fx-border-color: #2e6644;" +
 			"-fx-border-width: 0 0 1 0;"
 		);
-		setTop(header);
+
+	    // Setup Seats
+	    topSeat.setAlignment(Pos.CENTER);
+	    topSeat.setPadding(new Insets(4));
+	    
+	    leftSeat.setAlignment(Pos.CENTER);
+	    leftSeat.setPadding(new Insets(16));
+	    
+	    rightSeat.setAlignment(Pos.CENTER);
+	    rightSeat.setPadding(new Insets(16));
+	    
+	    //bottom seat (Player)
+	    humanArea.setPadding(new Insets(4, 16, 8, 16));
+	    humanArea.setStyle("-fx-background-color: #0d1f16; -fx-border-color: #2e6644; -fx-border-width: 1 0 0 0;");
+	    humanArea.setAlignment(Pos.CENTER);
+	    humanArea.getChildren().add(turnLabel);
+	    
+	    // smaller logbox
+	    VBox logBox = new VBox(2, eventLog);
+	    logBox.setPadding(new Insets(4, 12, 4, 12));
+	    logBox.setMaxWidth(450); 
+	    logBox.setMaxHeight(60); // 60px is exactly enough for 1-2 lines of text
+	    logBox.setStyle(
+	        "-fx-background-color: #1a3a2add;" + //dd for slight transparency
+	        "-fx-border-color: #2e6644;" + 
+	        "-fx-border-radius: 8;" + 
+	        "-fx-background-radius: 8;"
+	    );
+
+	    // setup table layer
+	    tableLayer.setPadding(new Insets(55, 0, 0, 0)); 
+	    tableLayer.setTop(topSeat); 
+	    tableLayer.setBottom(humanArea);
+	    tableLayer.setLeft(leftSeat);
+	    tableLayer.setRight(rightSeat);
+	    
+	    //place log in bottom center
+	    BorderPane.setAlignment(logBox, Pos.BOTTOM_CENTER);
+	    BorderPane.setMargin(logBox, new Insets(0, 0, 10, 0));
+	    tableLayer.setCenter(logBox);
+	    
+	    //hud layer setup
+	    hudLayer.setPickOnBounds(false); 
+	    
+	    //pin header to top
+	    AnchorPane.setTopAnchor(header, 0.0);
+	    AnchorPane.setLeftAnchor(header, 0.0);
+	    AnchorPane.setRightAnchor(header, 0.0);
+	    
+	    hudLayer.getChildren().add(header);
 		
-		aiHandsArea.setPadding(new Insets(12, 16, 8, 16));
-		aiHandsArea.setStyle(
-			"-fx-background-color: #122a1e;"
-		);
-		
-		//turn label styling
-		turnLabel.setStyle(
-			"-fx-font-family: 'DM Sans', sans-serif;" +
-			"-fx-font-size: 13px;" +
-			"-fx-text-fill: #a8d5b5;" +
-			"-fx-padding: 6 0 2 0;"
-		);
-		
-		humanArea.setPadding(new Insets(8, 16, 12, 16));
-		humanArea.setStyle(
-			"-fx-background-color: #0d1f16;" +
-			"-fx-border-color: #2e6644;" +
-			"-fx-border-width: 1 0 0 0;"
-		);
-		humanArea.getChildren().add(turnLabel);
-		
-		//log
-		VBox logBox = new VBox(4, makeSmallLabel("Game Log"), eventLog);
-		logBox.setPadding(new Insets(8, 16, 8, 16));
-		logBox.setStyle("-fx-background-color: #0d1f16;");
-		
-		//center
-		VBox center = new VBox(0, aiHandsArea, logBox);
-		VBox.setVgrow(logBox, Priority.ALWAYS);
-		
-		setCenter(center);
-		setBottom(humanArea);
-		
-		//overlay (game over screen and trap card dialogs -> choosing target)
+		//overlay setup
 		overlayPane.setVisible(false);
 		overlayPane.setStyle("-fx-background-color: rgba(0, 0, 0, 0.72);");
 		StackPane.setAlignment(overlayPane, Pos.CENTER);
+		
+		//combine layers
+		this.getChildren().addAll(tableLayer, hudLayer, overlayPane);
 	}
 	
 	//game setup
@@ -130,7 +155,11 @@ public class GameView extends BorderPane{
 		if (refreshTimeline != null) { refreshTimeline.stop(); }
 		
 		handViews.clear();
-		aiHandsArea.getChildren().clear();
+		
+		topSeat.getChildren().clear();
+		leftSeat.getChildren().clear();
+		rightSeat.getChildren().clear();
+		
 		humanArea.getChildren().clear();
 		humanArea.getChildren().add(turnLabel);
 		eventLog.clear();
@@ -169,17 +198,31 @@ public class GameView extends BorderPane{
 			gameState.log(p.getName() + " starts with " + p.handSize() + " cards");
 		}
 		
-		//build hand views
-		for (Player p : players) {
-			//only reveal hand view to human player
+		//build hand views and place them in the Round Table seats
+		for (int i = 0; i < players.size(); i++) {
+			Player p = players.get(i);
 			boolean reveal = p.getIsHuman();
 			PlayerHandView view = new PlayerHandView(p, reveal);
 			handViews.add(view);
 			
+			// seat assignment based on index
 			if (p.getIsHuman()) {
+				// Human is always bottom
 				humanArea.getChildren().add(view);
-			} else {
-				aiHandsArea.getChildren().add(view);
+			} else if (i == 1) {
+				// CPU 1 is Left
+				view.setRotate(90);
+				view.setMaxWidth(300);
+				leftSeat.getChildren().add(new javafx.scene.Group(view));
+			} else if (i == 2) {
+				// CPU 2 is Top 
+				view.setRotate(0);
+				topSeat.getChildren().add(new javafx.scene.Group(view));
+			} else if (i == 3) {
+				// CPU 3 is Right 
+				view.setRotate(-90);
+				view.setMaxWidth(300);
+				rightSeat.getChildren().add(new javafx.scene.Group(view));
 			}
 		}
 		
