@@ -11,6 +11,11 @@ import javafx.scene.control.Label;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
+
+import javafx.scene.shape.Circle;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+
 import javafx.util.Duration;
 
 //util imports
@@ -36,7 +41,7 @@ public class GameView extends StackPane {
 	private final AnchorPane hudLayer = new AnchorPane();
 	
 	//ui components
-	private final HBox topSeat = new HBox();
+	private final VBox topSeat = new VBox();
 	private final VBox leftSeat = new VBox();
 	private final VBox rightSeat = new VBox();
 	private final VBox humanArea = new VBox(8);
@@ -47,12 +52,19 @@ public class GameView extends StackPane {
 	
 	//hand views
 	private final List<PlayerHandView> handViews = new ArrayList<>();
+	private final List<PlayerPlate> playerPlates = new ArrayList<>();
 	
 	//for singleplayer, this is the human
 	private Player player;
 	
 	//cooldown refresh, redraws status labels
 	private Timeline refreshTimeline;
+	
+	//avatar_icons
+	private final String[] ANIMAL_ICONS = {
+		"monkey.png", "dragon.png", "rat.png", "rabbit.png", 
+		"cow.png", "pig.png", "bear.png", "cat.png", "dog.png"
+	};
 	
 	//constructor
 	public GameView() {
@@ -198,31 +210,50 @@ public class GameView extends StackPane {
 			gameState.log(p.getName() + " starts with " + p.handSize() + " cards");
 		}
 		
-		//build hand views and place them in the Round Table seats
+		// clear old plates before starting
+		playerPlates.clear();
+		
+		//randomize avatar icons
+		java.util.List<String> availableIcons = new java.util.ArrayList<>(java.util.Arrays.asList(ANIMAL_ICONS));
+		java.util.Collections.shuffle(availableIcons);
+		
+		// build hand views, plates, and place them in the Round Table seats
 		for (int i = 0; i < players.size(); i++) {
 			Player p = players.get(i);
 			boolean reveal = p.getIsHuman();
 			PlayerHandView view = new PlayerHandView(p, reveal);
 			handViews.add(view);
 			
+			//pop the first icon off the shuffled list
+			String iconFilename = availableIcons.remove(0);
+			String fullImagePath = "/assets/avatars/" + iconFilename;
+			
+			//create the ui plate
+			PlayerPlate plate = new PlayerPlate(p, fullImagePath);
+			playerPlates.add(plate);
+			
 			// seat assignment based on index
 			if (p.getIsHuman()) {
-				// Human is always bottom
-				humanArea.getChildren().add(view);
+				// Human area: Cards point at center, Plate below, Turn label at bottom
+				humanArea.getChildren().clear(); 
+				humanArea.getChildren().addAll(view, plate, turnLabel); 
 			} else if (i == 1) {
 				// CPU 1 is Left
 				view.setRotate(90);
 				view.setMaxWidth(300);
-				leftSeat.getChildren().add(new javafx.scene.Group(view));
+				leftSeat.setSpacing(12);
+				leftSeat.getChildren().addAll(plate, new javafx.scene.Group(view));
 			} else if (i == 2) {
 				// CPU 2 is Top 
 				view.setRotate(0);
-				topSeat.getChildren().add(new javafx.scene.Group(view));
+				topSeat.setSpacing(12);
+				topSeat.getChildren().addAll(plate, new javafx.scene.Group(view)); 
 			} else if (i == 3) {
 				// CPU 3 is Right 
 				view.setRotate(-90);
 				view.setMaxWidth(300);
-				rightSeat.getChildren().add(new javafx.scene.Group(view));
+				rightSeat.setSpacing(12);
+				rightSeat.getChildren().addAll(plate, new javafx.scene.Group(view));
 			}
 		}
 		
@@ -280,6 +311,10 @@ public class GameView extends StackPane {
 	}
 	
 	private void refreshAllHands() {
+		for (PlayerPlate plate : playerPlates) {
+			plate.refresh();
+		}
+		
 		//Player target = player.getIsOut() ? null : player.getNextDrawTarget();
 		
 		boolean humanCanDraw = player.canDraw();
@@ -520,5 +555,81 @@ public class GameView extends StackPane {
     public StackPane getOverlayPane() {
         return overlayPane;
     }
+    
+    // avatar component
+    private class PlayerPlate extends HBox {
+		private final Player player;
+		private final Label countLabel;
+		private final ImageView avatarView;
+		private final Label statusLabel; // NEW: Replaced the dot with a text label!
+
+		public PlayerPlate(Player player, String imagePath) {
+			this.player = player;
+			
+			//timer
+			this.statusLabel = new Label();
+			this.statusLabel.setStyle("-fx-font-family: 'DM Mono', monospace; -fx-font-weight: bold; -fx-font-size: 13px;");
+			this.statusLabel.setPrefWidth(50); // Fixed width prevents the whole plate from jittering
+			this.statusLabel.setAlignment(Pos.CENTER_RIGHT);
+
+			Image avatarImage = new Image(getClass().getResourceAsStream(imagePath));
+			this.avatarView = new ImageView(avatarImage);
+			avatarView.setFitWidth(32);
+			avatarView.setFitHeight(32);
+			avatarView.setPreserveRatio(true);
+			avatarView.setSmooth(true);
+			
+			Circle clip = new Circle(16, 16, 16);
+			avatarView.setClip(clip);
+
+			Label nameLabel = new Label(player.getName());
+			nameLabel.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-text-fill: #e8c87a; -fx-font-weight: bold; -fx-font-size: 13px;");
+			
+			this.countLabel = new Label();
+			this.countLabel.setStyle("-fx-font-family: 'DM Mono', monospace; -fx-text-fill: #8ca898; -fx-font-size: 12px;");
+
+			this.setSpacing(12);
+			this.setAlignment(Pos.CENTER);
+			this.setPadding(new Insets(6, 16, 6, 16));
+			this.setMaxWidth(Region.USE_PREF_SIZE); 
+			
+			this.setStyle(
+				"-fx-background-color: #0d1f16;" +
+				"-fx-background-radius: 20;" +
+				"-fx-border-color: #2e6644;" +
+				"-fx-border-radius: 20;"
+			);
+
+			this.getChildren().addAll(avatarView, nameLabel, countLabel, statusLabel);
+			refresh(); 
+		}
+
+		public void refresh() {
+			countLabel.setText(player.handSize() + " cards");
+
+			if (player.getIsOut()) {
+				statusLabel.setText("SAFE");
+				statusLabel.setStyle("-fx-text-fill: #555555;"); // Gray
+				return;
+			}
+			
+			//status label states
+			switch (player.getDrawState()) {
+				case SKIPPED -> {
+					statusLabel.setText("SKIPPED");
+					statusLabel.setStyle("-fx-text-fill: #e05555;"); // Red
+				}
+				case COOLDOWN -> {
+					long secondsLeft = player.getRemainingCooldown() / 1000 + 1;
+					statusLabel.setText(secondsLeft + "s");
+					statusLabel.setStyle("-fx-text-fill: #e05555;"); // Red
+				}
+				default -> {
+					statusLabel.setText("READY");
+					statusLabel.setStyle("-fx-text-fill: #4dc880;"); // Green
+				}
+			}
+		}
+	}
 
 }
