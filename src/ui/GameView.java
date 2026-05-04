@@ -252,10 +252,15 @@ public class GameView extends StackPane {
 			if (!view.getPlayer().getIsHuman()) {
 				//if player is not human
 				view.setOnCardClicked(cardIndex -> {
+					if (player.canDraw()) {
+						gameLoop.submitHumanDraw(view.getPlayer(), cardIndex);
+					}
+					/*
 					Player target = player.getNextDrawTarget();
 					if (target != null && target == view.getPlayer()) {
 						gameLoop.submitHumanDraw(cardIndex);
 					}
+					 */
 				});
 			}
 		}
@@ -275,15 +280,20 @@ public class GameView extends StackPane {
 	}
 	
 	private void refreshAllHands() {
-		Player target = player.getIsOut() ? null : player.getNextDrawTarget();
+		//Player target = player.getIsOut() ? null : player.getNextDrawTarget();
 		
 		boolean humanCanDraw = player.canDraw();
 		
 		for (PlayerHandView view : handViews) {
 			boolean isTarget = !view.getPlayer().getIsHuman() 
+			        && !view.getPlayer().getIsOut() 
+			        && humanCanDraw;
+			/* PREVIOUS LOGIC
+			boolean isTarget = !view.getPlayer().getIsHuman() 
                     && view.getPlayer() == target 
                     && !player.getIsOut()
                     && humanCanDraw; 
+			 */
                     
 			view.refresh(isTarget);
 		}
@@ -296,12 +306,17 @@ public class GameView extends StackPane {
 			return;
 		}
 		
+		// Free-for-all logic
+		turnLabel.setText("Free-For-All! Click any opponent's card to draw.");
+		
+		/* PREVIOUS LOGIC
 		Player target = player.getNextDrawTarget();
 		if (target == null) {
 			turnLabel.setText("No valid targets remaining");
 		} else {
 			turnLabel.setText("Draw from " + target.getName() + ", click one of their cards (" + target.handSize() + " cards)");
-		}
+		}		 
+		 */
 	}
 	
 	//trap card target chooser

@@ -18,8 +18,13 @@ public class GameLoop implements Runnable {
 	private final GameState state;
 	private volatile boolean isRunning = true;
 	
-	//human's pending draw action (consumed)
+	// for new free-for-all 
+	private volatile Player pendingTargetPlayer = null;
+	private volatile int pendingCardIndex = -1;
+	
+	/* previous free-for-all 
 	private volatile PendingHumanDraw pendingHumanDraw = null;
+	*/
 	
 	private TrapCardHandler.TargetChooser targetChooser;
 	
@@ -83,21 +88,55 @@ public class GameLoop implements Runnable {
 	        humanReadyTimestamp = System.currentTimeMillis();
 	    }
 		
+		//new free for all logic
+		if (pendingTargetPlayer == null || pendingCardIndex == -1) {
+			if (System.currentTimeMillis() - humanReadyTimestamp > AFK_TIMEOUT_MS) {
+				state.log(human.getName() + " took too long! Auto-drawing...");
+				Player target = human.getNextDrawTarget(); 
+				if (target != null && target.handSize() > 0) {
+					int randomCardIndex = (int)(Math.random() * target.handSize());
+					performDraw(human, target, randomCardIndex);
+				}
+				humanReadyTimestamp = 0;
+				human.startCooldown(HUMAN_COOLDOWN_MS);
+			}
+			return; 
+		}
+		
+		Player target = pendingTargetPlayer;
+		int index = pendingCardIndex;
+		
+		pendingTargetPlayer = null;
+		pendingCardIndex = -1;
+		
+		if (target.handSize() == 0) {
+			state.log("No valid target to draw from");
+			return;
+		}
+		
+		if (index < 0 || index >= target.handSize()) { index = 0; }
+		
+		performDraw(human, target, index);
+		
+		humanReadyTimestamp = 0;
+		human.startCooldown(HUMAN_COOLDOWN_MS);
+		
+		/*previous free for all logic
 		PendingHumanDraw pending = pendingHumanDraw;
 		if (pending == null) {
 			if (System.currentTimeMillis() - humanReadyTimestamp > AFK_TIMEOUT_MS) {
 				state.log(human.getName() + "took too long! Auto-drawing...");
 				
 				Player target = human.getNextDrawTarget();
-	            if (target != null && target.handSize() > 0) {
-	                // Force a random draw just like the AI
-	                int randomCardIndex = (int)(Math.random() * target.handSize());
-	                performDraw(human, target, randomCardIndex);
-	            }
-	            
-	            // Reset timer and put on cooldown
-	            humanReadyTimestamp = 0;
-	            human.startCooldown(HUMAN_COOLDOWN_MS);
+				if (target != null && target.handSize() > 0) {
+					// Force a random draw just like the AI
+					int randomCardIndex = (int)(Math.random() * target.handSize());
+					performDraw(human, target, randomCardIndex);
+				}
+				
+				// Reset timer and put on cooldown
+				humanReadyTimestamp = 0;
+				human.startCooldown(HUMAN_COOLDOWN_MS);
 			}
 			return; 
 		}
@@ -118,11 +157,18 @@ public class GameLoop implements Runnable {
 		
 		performDraw(human, target, index);
 		human.startCooldown(HUMAN_COOLDOWN_MS);
+		*/
 	}
 	
 	//for UI
-	public void submitHumanDraw(int cardIndex) {
-		pendingHumanDraw = new PendingHumanDraw(cardIndex);
+	public void submitHumanDraw(Player target, int cardIndex) {
+		// new free for all logic
+		this.pendingTargetPlayer = target;
+		this.pendingCardIndex = cardIndex;
+		
+		/* previous free for all logic
+		this.pendingHumanDraw = new PendingHumanDraw(cardIndex);
+		*/
 	}
 	
 	//AI tick
@@ -172,6 +218,7 @@ public class GameLoop implements Runnable {
 		isRunning = false;
 	}
 	
-	//to carry human cardpick from UI to game loop
-	private record PendingHumanDraw(int cardIndex) {}
+	/* previous free for all logic
+ 	private record PendingHumanDraw(int cardIndex) {}
+	*/
 }
