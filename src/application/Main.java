@@ -2,34 +2,50 @@ package application;
 
 import javafx.application.Application;
 import javafx.scene.Scene;
-import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
-
-//class import/s
 import ui.GameView;
+import ui.MainMenu;
 
 public class Main extends Application{
+	private Stage window;
+	private Scene mainScene;
+	
 	@Override
 	public void start(Stage primaryStage) {
-		GameView gameView = new GameView();
-		
-		StackPane root = new StackPane(gameView, gameView.getOverlayPane());
-		
-		//change screen size here
-		Scene scene = new Scene(root, 860, 700);
-		
-		scene.getStylesheets().add(
-			"https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400" +
-			"&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap"
-		);
-		
-		primaryStage.setTitle("UPLB Babanuki");
-		primaryStage.setScene(scene);
-		primaryStage.setMinWidth(700);
-		primaryStage.setMinHeight(540);
-		primaryStage.show();
+		this.window = primaryStage;
+		window.setTitle("UPLB Babanuki");
+
+		// Show the Main Menu initially
+		showMainMenu();
+
+		window.show();
 	}
 	
+	private void showMainMenu() {
+		MainMenu menu = new MainMenu(
+			// Callback 1: Singleplayer Clicked
+			playerName -> startGame(playerName, false), 
+			
+			// Callback 2: Multiplayer Clicked
+			playerName -> {
+				System.out.println("Multiplayer coming soon! Starting Singleplayer for now.");
+				startGame(playerName, true); 
+			}
+		);
+
+		// Set the window size (adjust 1000x700 to whatever looks best for you)
+		mainScene = new Scene(menu, 1000, 700); 
+		window.setScene(mainScene);
+	}
+
+	private void startGame(String playerName, boolean isMultiplayer) {
+		// Create the game, passing in the custom name!
+		GameView game = new GameView(playerName, () -> showMainMenu());
+		
+		// Swap the root of the scene to the game layout
+		mainScene.setRoot(game);
+	}
+
 	public static void main(String[] args) {
 		launch(args);
 	}

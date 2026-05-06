@@ -71,8 +71,13 @@ public class GameView extends StackPane {
 		"cow.png", "pig.png", "bear.png", "cat.png", "dog.png"
 	};
 	
+	private String humanPlayerName = "You";
+	private Runnable onReturnToMenu;
+	
 	//constructor
-	public GameView() {
+	public GameView(String playerName, Runnable onReturnToMenu) {
+		this.humanPlayerName = playerName;
+		this.onReturnToMenu = onReturnToMenu;
 		buildLayout();
 		startNewGame();
 	}
@@ -89,14 +94,21 @@ public class GameView extends StackPane {
 			"-fx-text-fill: #e8c87a;"
 		);
 		
-		Button newGameBtn = makeButton("New Game", "#2e6644", "#e8c87a");
-		newGameBtn.setOnAction(e -> startNewGame());
+		Button restartBtn = makeButton("New Game", "#2e6644", "#e8c87a");
+		restartBtn.setOnAction(e -> startNewGame());
+
+		// NEW: Main Menu Button
+		Button menuBtn = makeButton("Main Menu", "#2e6644", "#e8c87a");
+		menuBtn.setOnAction(e -> {
+			cleanup(); // Stop the game!
+			onReturnToMenu.run(); // Swap the screen!
+		});
 		
-		// add spacer between title text and button
 		Region headerSpacer = new Region();
 		HBox.setHgrow(headerSpacer, Priority.ALWAYS);
 		
-		HBox header = new HBox(16, titleLabel, headerSpacer, newGameBtn);
+		// Add BOTH buttons to the header
+		HBox header = new HBox(16, titleLabel, headerSpacer, restartBtn, menuBtn);
 		header.setAlignment(Pos.CENTER);
 		header.setPadding(new Insets(10, 20, 10, 20));
 		header.setStyle(
@@ -186,7 +198,7 @@ public class GameView extends StackPane {
 		animEngine = new AnimationEngine(animationLayer);
 		
 		//build players
-		player = new Player("You", true);
+		player = new Player(humanPlayerName, true);
 		List<Player> players = new ArrayList<>();
 		players.add(player);
 		
@@ -272,7 +284,7 @@ public class GameView extends StackPane {
 		wireHumanDrawClicks();
 		
 		//build game loop
-		gameLoop = gameLoop = new GameLoop(gameState, buildTargetChooser(), buildAnimationCallback());
+		gameLoop = new GameLoop(gameState, buildTargetChooser(), buildAnimationCallback());
 		
 		refreshTimeline = new Timeline(
 			new KeyFrame(Duration.millis(500), e -> Platform.runLater(this::refreshAllHands))
@@ -521,7 +533,7 @@ public class GameView extends StackPane {
 			nameLabel.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 16px; -fx-text-fill: #fdf6e3;");
 			
 			// Styling based on placement
-String rowStyle = "-fx-background-color: #1a3a2a; -fx-background-radius: 8;";
+			String rowStyle = "-fx-background-color: #1a3a2a; -fx-background-radius: 8;";
 			
 			// NEW: Highlight the Human Player's row with a blue border!
 			if (p.getIsHuman()) {
@@ -561,12 +573,22 @@ String rowStyle = "-fx-background-color: #1a3a2a; -fx-background-radius: 8;";
 			leaderboardBox.getChildren().add(row);
 		}
 		
-		// 4. Play Again Button
+		// 4Action Buttons
 		Button playAgainBtn = makeButton("Play Again", "#2e6644", "#e8c87a");
 		playAgainBtn.setOnAction(e -> startNewGame());
-		VBox.setMargin(playAgainBtn, new Insets(15, 0, 0, 0));
 		
-		leaderboardBox.getChildren().add(playAgainBtn);
+		Button menuBtn = makeButton("Main Menu", "#2e6644", "#e8c87a");
+		menuBtn.setOnAction(e -> {
+			cleanup();
+			onReturnToMenu.run();
+		});
+
+		// Put them side-by-side
+		HBox buttonBox = new HBox(15, playAgainBtn, menuBtn);
+		buttonBox.setAlignment(Pos.CENTER);
+		VBox.setMargin(buttonBox, new Insets(15, 0, 0, 0));
+		
+		leaderboardBox.getChildren().add(buttonBox);
 		
 		overlayPane.getChildren().setAll(leaderboardBox);
 		showOverlay();
@@ -700,6 +722,12 @@ String rowStyle = "-fx-background-color: #1a3a2a; -fx-background-radius: 8;";
 				}
 			}
 		}
+	}
+    
+    public void cleanup() {
+		if (gameLoop != null) { gameLoop.stop(); }
+		if (gameThread != null) { gameThread.interrupt(); }
+		if (refreshTimeline != null) { refreshTimeline.stop(); }
 	}
 
 }
