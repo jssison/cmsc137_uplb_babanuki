@@ -42,6 +42,8 @@ public class GameView extends StackPane {
 	//layer components
 	private final BorderPane tableLayer = new BorderPane();
 	private final AnchorPane hudLayer = new AnchorPane();
+	private final Pane animationLayer = new Pane();
+	private AnimationEngine animEngine;
 	
 	//ui components
 	private final VBox topSeat = new VBox();
@@ -158,8 +160,10 @@ public class GameView extends StackPane {
 		overlayPane.setStyle("-fx-background-color: rgba(0, 0, 0, 0.72);");
 		StackPane.setAlignment(overlayPane, Pos.CENTER);
 		
+		animationLayer.setMouseTransparent(true);
+		
 		//combine layers
-		this.getChildren().addAll(tableLayer, hudLayer, overlayPane);
+		this.getChildren().addAll(tableLayer, hudLayer, animationLayer, overlayPane);
 	}
 	
 	//game setup
@@ -179,6 +183,7 @@ public class GameView extends StackPane {
 		humanArea.getChildren().add(turnLabel);
 		eventLog.clear();
 		hideOverlay();
+		animEngine = new AnimationEngine(animationLayer);
 		
 		//build players
 		player = new Player("You", true);
@@ -264,7 +269,7 @@ public class GameView extends StackPane {
 		wireHumanDrawClicks();
 		
 		//build game loop
-		gameLoop = new GameLoop(gameState, buildTargetChooser());
+		gameLoop = gameLoop = new GameLoop(gameState, buildTargetChooser(), buildAnimationCallback());
 		
 		refreshTimeline = new Timeline(
 			new KeyFrame(Duration.millis(500), e -> Platform.runLater(this::refreshAllHands))
@@ -282,12 +287,21 @@ public class GameView extends StackPane {
 	
 	//human input wiring
 	private void wireHumanDrawClicks() {
+		// Find the Human's hand view so the card knows where to fly to!
+		PlayerPlate humanPlate = playerPlates.stream()
+				.filter(p -> p.player.getIsHuman())
+				.findFirst()
+				.orElse(null);
+		
 		for (PlayerHandView view : handViews) {
 			if (!view.getPlayer().getIsHuman()) {
 				//if player is not human
 				view.setOnCardClicked(cardIndex -> {
 					if (player.canDraw()) {
-						gameLoop.submitHumanDraw(view.getPlayer(), cardIndex);
+						// 2. Animate from the specific card to the Avatar Plate
+						animEngine.animateSteal(view.getCardNode(cardIndex), humanPlate, () -> {
+							gameLoop.submitHumanDraw(view.getPlayer(), cardIndex);
+						});
 					}
 					/*
 					Player target = player.getNextDrawTarget();
@@ -335,6 +349,8 @@ public class GameView extends StackPane {
                     
 			view.refresh(isTarget);
 		}
+		
+		wireHumanDrawClicks();
 	}
 	
 	private void updateTurnLabel() {
@@ -365,6 +381,34 @@ public class GameView extends StackPane {
 	        
 	        Platform.runLater(() -> showTargetDialog(prompt, options, onChosen));
 	    };
+	}
+	
+	// animation callback for the backend GameLoop
+	private GameLoop.AnimationCallback buildAnimationCallback() {
+		return (stealer, target, cardIndex, onComplete) -> {
+			// CRITICAL: Animations must run on the JavaFX Thread!
+			Platform.runLater(() -> {
+				// 1. Find the victim's Hand View
+				PlayerHandView targetView = handViews.stream()
+						.filter(v -> v.getPlayer() == target)
+						.findFirst()
+						.orElse(null);
+
+				// 2. Find the stealer's Avatar Plate
+				PlayerPlate stealerPlate = playerPlates.stream()
+						.filter(p -> p.player == stealer)
+						.findFirst()
+						.orElse(null);
+
+				// 3. Play the animation!
+				if (targetView != null && stealerPlate != null) {
+					animEngine.animateSteal(targetView.getCardNode(cardIndex), stealerPlate, onComplete);
+				} else {
+					// Fallback safety net so the thread doesn't freeze if a UI element is missing
+					if (onComplete != null) onComplete.run(); 
+				}
+			});
+		};
 	}
 
 	private void showTargetDialog(String prompt, List<Player> options, Consumer<Player> onChosen) {

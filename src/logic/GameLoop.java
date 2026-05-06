@@ -6,6 +6,7 @@ import model.GameState;
 import model.Player;
 
 import java.util.List;
+import java.util.concurrent.CountDownLatch; // NEW IMPORT!
 
 public class GameLoop implements Runnable {
 	//cooldowns
@@ -22,16 +23,19 @@ public class GameLoop implements Runnable {
 	private volatile Player pendingTargetPlayer = null;
 	private volatile int pendingCardIndex = -1;
 	
-	/* previous free-for-all 
-	private volatile PendingHumanDraw pendingHumanDraw = null;
-	*/
-	
 	private TrapCardHandler.TargetChooser targetChooser;
 	
-	//constructor
-	public GameLoop(GameState state, TrapCardHandler.TargetChooser targetChooser) {
+	// NEW: The callback interface so the backend can trigger UI animations
+	public interface AnimationCallback {
+		void playStealAnimation(Player stealer, Player target, int cardIndex, Runnable onComplete);
+	}
+	private AnimationCallback animationCallback;
+	
+	//constructor (UPDATED to accept the callback)
+	public GameLoop(GameState state, TrapCardHandler.TargetChooser targetChooser, AnimationCallback animationCallback) {
 		this.state = state;
 		this.targetChooser = targetChooser;
+		this.animationCallback = animationCallback;
 	}
 	
 	@Override
@@ -85,8 +89,8 @@ public class GameLoop implements Runnable {
 	//human tick
 	private void processHumanTick(Player human) {
 		if (humanReadyTimestamp == 0) {
-	        humanReadyTimestamp = System.currentTimeMillis();
-	    }
+			humanReadyTimestamp = System.currentTimeMillis();
+		}
 		
 		//new free for all logic
 		if (pendingTargetPlayer == null || pendingCardIndex == -1) {
@@ -95,7 +99,8 @@ public class GameLoop implements Runnable {
 				Player target = human.getNextDrawTarget(); 
 				if (target != null && target.handSize() > 0) {
 					int randomCardIndex = (int)(Math.random() * target.handSize());
-					performDraw(human, target, randomCardIndex);
+					// USE ANIMATED DRAW FOR AFK!
+					animatedPerformDraw(human, target, randomCardIndex); 
 				}
 				humanReadyTimestamp = 0;
 				human.startCooldown(HUMAN_COOLDOWN_MS);
@@ -116,48 +121,11 @@ public class GameLoop implements Runnable {
 		
 		if (index < 0 || index >= target.handSize()) { index = 0; }
 		
+		// Standard performDraw, because the UI already animated the human click!
 		performDraw(human, target, index);
 		
 		humanReadyTimestamp = 0;
 		human.startCooldown(HUMAN_COOLDOWN_MS);
-		
-		/*previous free for all logic
-		PendingHumanDraw pending = pendingHumanDraw;
-		if (pending == null) {
-			if (System.currentTimeMillis() - humanReadyTimestamp > AFK_TIMEOUT_MS) {
-				state.log(human.getName() + "took too long! Auto-drawing...");
-				
-				Player target = human.getNextDrawTarget();
-				if (target != null && target.handSize() > 0) {
-					// Force a random draw just like the AI
-					int randomCardIndex = (int)(Math.random() * target.handSize());
-					performDraw(human, target, randomCardIndex);
-				}
-				
-				// Reset timer and put on cooldown
-				humanReadyTimestamp = 0;
-				human.startCooldown(HUMAN_COOLDOWN_MS);
-			}
-			return; 
-		}
-		
-		pendingHumanDraw = null; //consume draw
-		
-		Player target = human.getNextDrawTarget();
-		if (target == null || target.handSize() == 0) {
-			state.log("No valid target to draw from");
-			return;
-		}
-		
-		//validate the card index picked by human player
-		int index = pending.cardIndex();
-		if (index < 0 || index >= target.handSize()) {
-			index = 0;
-		}
-		
-		performDraw(human, target, index);
-		human.startCooldown(HUMAN_COOLDOWN_MS);
-		*/
 	}
 	
 	//for UI
@@ -165,10 +133,6 @@ public class GameLoop implements Runnable {
 		// new free for all logic
 		this.pendingTargetPlayer = target;
 		this.pendingCardIndex = cardIndex;
-		
-		/* previous free for all logic
-		this.pendingHumanDraw = new PendingHumanDraw(cardIndex);
-		*/
 	}
 	
 	//AI tick
@@ -177,10 +141,35 @@ public class GameLoop implements Runnable {
 		if (target == null || target.handSize() == 0) { return; }
 		
 		int index = (int)(Math.random() * target.handSize());
-		performDraw(ai, target, index);
+		
+		// THE NEW LOGIC: Use the animated draw instead of instantly moving data!
+		animatedPerformDraw(ai, target, index);
 		
 		long variance = (long)(Math.random() * 1000);
 		ai.startCooldown(AI_COOLDOWN_MS + variance);
+	}
+
+	// NEW METHOD: Halts the GameLoop Thread while the UI plays the animation
+	private void animatedPerformDraw(Player drawer, Player target, int cardIndex) {
+		if (animationCallback != null) {
+			CountDownLatch waitForAnimation = new CountDownLatch(1);
+			
+			// Trigger UI animation
+			animationCallback.playStealAnimation(drawer, target, cardIndex, () -> {
+				waitForAnimation.countDown(); // UI tells us it finished!
+			});
+			
+			// Freeze GameLoop until countDown() happens
+			try {
+				waitForAnimation.await();
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				return;
+			}
+		}
+		
+		// Now actually draw the card
+		performDraw(drawer, target, cardIndex);
 	}
 	
 	//draw logic
@@ -217,8 +206,4 @@ public class GameLoop implements Runnable {
 	public void stop() {
 		isRunning = false;
 	}
-	
-	/* previous free for all logic
- 	private record PendingHumanDraw(int cardIndex) {}
-	*/
 }

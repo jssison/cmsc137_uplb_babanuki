@@ -2,6 +2,7 @@ package ui;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
@@ -184,5 +185,12 @@ public class PlayerHandView extends VBox {
 	
 	public Player getPlayer() {
 		return player;
+	}
+	
+	public Node getCardNode(int index) {
+		if (index >= 0 && index < cardRow.getChildren().size()) {
+			return cardRow.getChildren().get(index);
+		}
+		return this; // Fallback to the whole box if the card isn't found
 	}
 }
