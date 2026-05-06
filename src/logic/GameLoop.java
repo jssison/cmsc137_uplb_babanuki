@@ -28,6 +28,7 @@ public class GameLoop implements Runnable {
 	// NEW: The callback interface so the backend can trigger UI animations
 	public interface AnimationCallback {
 		void playStealAnimation(Player stealer, Player target, int cardIndex, Runnable onComplete);
+		void playDiscardAnimation(Player player, List<Card> discardedCards);
 	}
 	private AnimationCallback animationCallback;
 	
@@ -56,6 +57,8 @@ public class GameLoop implements Runnable {
 	
 	private void tick() {
 		for (Player player : state.getPlayers()) {
+			if (state.isFinished() || !isRunning) break;
+			
 			if (player.getIsOut()) { continue; }
 			
 			player.refreshState();
@@ -168,12 +171,19 @@ public class GameLoop implements Runnable {
 			}
 		}
 		
+		if (state.isFinished() || !isRunning) return;
+		
 		// Now actually draw the card
 		performDraw(drawer, target, cardIndex);
 	}
 	
 	//draw logic
 	private void performDraw(Player drawer, Player target, int cardIndex) {
+		if (target.handSize() == 0) return;
+		if (cardIndex < 0 || cardIndex >= target.handSize()) {
+			cardIndex = Math.max(0, target.handSize() - 1); 
+		}
+		
 		Card drawn = target.takeCard(cardIndex);
 		drawer.addCard(drawn);
 		
@@ -185,6 +195,10 @@ public class GameLoop implements Runnable {
 		if (!discarded.isEmpty()) {
 			int pairs = discarded.size() / 2;
 			state.log(drawer.getName() + " discarded " + pairs + " pairs");
+			
+			if (animationCallback != null) {
+				animationCallback.playDiscardAnimation(drawer, discarded);
+			}
 			
 			//check if any trap cards were discarded
 			boolean hasTrap = discarded.stream().anyMatch(Card::isTrap);

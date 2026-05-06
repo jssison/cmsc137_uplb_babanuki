@@ -207,10 +207,13 @@ public class GameView extends StackPane {
 		gameState.addLogListener(eventLog::addEntry);
 		gameState.addStateChangeListener(this::refreshUI);
 		
+		java.util.Map<Player, List<model.Card>> initialDiscards = new java.util.HashMap<>();
+		
 		for (Player p : players) {
 			List<model.Card> discarded = p.discardPairs();
 			if (!discarded.isEmpty()) {
 				gameState.log(p.getName() + " discarded " + (discarded.size() / 2) + " pair(s)");
+				initialDiscards.put(p, discarded);
 			}
 		}
 
@@ -281,6 +284,20 @@ public class GameView extends StackPane {
 		gameThread = new Thread(gameLoop, "GameLoop");
 		gameThread.setDaemon(true);
 		gameThread.start();
+		
+		javafx.animation.PauseTransition startupPause = new javafx.animation.PauseTransition(Duration.millis(800));
+		startupPause.setOnFinished(e -> {
+			for (java.util.Map.Entry<Player, List<model.Card>> entry : initialDiscards.entrySet()) {
+				Player p = entry.getKey();
+				PlayerPlate plate = playerPlates.stream().filter(pl -> pl.player == p).findFirst().orElse(null);
+				if (plate != null) {
+					for (model.Card c : entry.getValue()) {
+						animEngine.animateDiscard(plate, c.toString());
+					}
+				}
+			}
+		});
+		startupPause.play();
 		
 		gameState.log("NEW GAME STARTED");
 	}
@@ -385,29 +402,35 @@ public class GameView extends StackPane {
 	
 	// animation callback for the backend GameLoop
 	private GameLoop.AnimationCallback buildAnimationCallback() {
-		return (stealer, target, cardIndex, onComplete) -> {
-			// CRITICAL: Animations must run on the JavaFX Thread!
-			Platform.runLater(() -> {
-				// 1. Find the victim's Hand View
-				PlayerHandView targetView = handViews.stream()
-						.filter(v -> v.getPlayer() == target)
-						.findFirst()
-						.orElse(null);
+		return new GameLoop.AnimationCallback() {
+			@Override
+			public void playStealAnimation(Player stealer, Player target, int cardIndex, Runnable onComplete) {
+				Platform.runLater(() -> {
+					PlayerHandView targetView = handViews.stream().filter(v -> v.getPlayer() == target).findFirst().orElse(null);
+					PlayerPlate stealerPlate = playerPlates.stream().filter(p -> p.player == stealer).findFirst().orElse(null);
 
-				// 2. Find the stealer's Avatar Plate
-				PlayerPlate stealerPlate = playerPlates.stream()
-						.filter(p -> p.player == stealer)
-						.findFirst()
-						.orElse(null);
+					if (targetView != null && stealerPlate != null) {
+						animEngine.animateSteal(targetView.getCardNode(cardIndex), stealerPlate, onComplete);
+					} else {
+						if (onComplete != null) onComplete.run(); 
+					}
+				});
+			}
 
-				// 3. Play the animation!
-				if (targetView != null && stealerPlate != null) {
-					animEngine.animateSteal(targetView.getCardNode(cardIndex), stealerPlate, onComplete);
-				} else {
-					// Fallback safety net so the thread doesn't freeze if a UI element is missing
-					if (onComplete != null) onComplete.run(); 
-				}
-			});
+			@Override
+			public void playDiscardAnimation(Player player, List<model.Card> discardedCards) {
+				Platform.runLater(() -> {
+					PlayerPlate sourcePlate = playerPlates.stream().filter(p -> p.player == player).findFirst().orElse(null);
+					if (sourcePlate != null) {
+						// THE FIX: Loop through EVERY single card and throw it
+						for (model.Card c : discardedCards) {
+							// NOTE: We use c.toString() here. If your Card class doesn't have 
+							// a good toString method, you might need to use c.getRank() + c.getSuit()
+							animEngine.animateDiscard(sourcePlate, c.toString());
+						}
+					}
+				});
+			}
 		};
 	}
 
@@ -498,17 +521,26 @@ public class GameView extends StackPane {
 			nameLabel.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 16px; -fx-text-fill: #fdf6e3;");
 			
 			// Styling based on placement
+String rowStyle = "-fx-background-color: #1a3a2a; -fx-background-radius: 8;";
+			
+			// NEW: Highlight the Human Player's row with a blue border!
+			if (p.getIsHuman()) {
+				rowStyle += " -fx-border-color: #4a90d9; -fx-border-radius: 8; -fx-border-width: 2;";
+			}
+
 			if (i == 0) {
 				rankLabel.setText("1ST");
 				rankLabel.setStyle(rankLabel.getStyle() + "-fx-text-fill: #e8c87a;"); // Gold
-				row.setStyle("-fx-background-color: #2e6644; -fx-background-radius: 8; -fx-border-color: #e8c87a; -fx-border-radius: 8;");
+				// Overwrite background for 1st place, keep human border if human won
+				rowStyle = "-fx-background-color: #2e6644; -fx-background-radius: 8;" + 
+				           (p.getIsHuman() ? " -fx-border-color: #4a90d9; -fx-border-width: 3;" : " -fx-border-color: #e8c87a; -fx-border-width: 2;") +
+				           " -fx-border-radius: 8;";
 			} else if (i == ranks.size() - 1) {
 				rankLabel.setText("LSR"); // Loser / Babanuki
 				rankLabel.setStyle(rankLabel.getStyle() + "-fx-text-fill: #e05555;"); // Red
 				nameLabel.setText(p.getName() + " (Babanuki!)");
 				nameLabel.setStyle(nameLabel.getStyle() + "-fx-text-fill: #e05555;");
 			} else {
-				// THE FIX: Properly handle 2nd, 3rd, and everything else
 				if (i == 1) {
 					rankLabel.setText("2ND");
 				} else if (i == 2) {
@@ -518,6 +550,8 @@ public class GameView extends StackPane {
 				}
 				rankLabel.setStyle(rankLabel.getStyle() + "-fx-text-fill: #8ca898;"); // Silver/Gray
 			}
+			
+			row.setStyle(rowStyle);
 			
 			// Push name to the right
 			Region spacer = new Region();
