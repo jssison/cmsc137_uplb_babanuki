@@ -2,13 +2,13 @@ package ui;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.Button;
-import javafx.scene.control.Label;
 import javafx.scene.layout.FlowPane;
-import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 
 //util imports
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -16,23 +16,30 @@ import java.util.function.Consumer;
 import model.Card;
 import model.Player;
 
-public class PlayerHandView extends VBox{
+public class PlayerHandView extends VBox {
 	private final Player player;
 	//true = show card faces, false = show backs
 	private final boolean revealCards;
 	
 	private final FlowPane cardRow = new FlowPane(6,6);
+	
+	/*infos moved to playerPlate
 	private final Label nameLabel = new Label();
 	private final Label statusLabel = new Label();
 	private final Label countLabel = new Label();
+	*/
 	
 	private Consumer<Integer> onCardClicked;
+	
+	private List<Card> lastHandSnapshot = new ArrayList<>();
+	private boolean lastTargetStatus = false;
 	
 	//constructor
 	public PlayerHandView(Player player, boolean revealCards) {
 		this.player = player;
 		this.revealCards = revealCards;
 		
+		setMaxWidth(600);
 		setSpacing(6);
 		setPadding(new Insets(10));
 		setStyle(
@@ -43,56 +50,44 @@ public class PlayerHandView extends VBox{
 			"-fx-background-radius: 8;"
 		);
 		
+		/* 
 		//name label styling
-		nameLabel.setStyle(
-			"-fx-font-family: 'Playfair Display', serif;" +
-			"-fx-font-size: 14px;" +
-			"-fx-font-weight: bold;" +
-			"-fx-text-fill: #e8c87a;"
-		);
-		
+		nameLabel.setStyle( ... );
 		//status label styling
-		statusLabel.setStyle(
-			"-fx-font-family: 'DM Sans', sans-serif;" +
-			"-fx-font-szie: 11px;" +
-			"-fx-text-fill: #7ab893;"
-		);
-		
+		statusLabel.setStyle( ... );
 		//count label styling
-		countLabel.setStyle(
-			"-fx-font-family: 'DM Mono', monospace;" +
-			"-fx-font-size: 11px;" +
-			"-fx-text-fill: #7ab893;"
-		);
+		countLabel.setStyle( ... );
 		
 		HBox header = new HBox(8, nameLabel, countLabel, statusLabel);
 		header.setAlignment(Pos.CENTER_LEFT);
+		*/
 		
 		cardRow.setPrefWrapLength(500);
 		cardRow.setAlignment(Pos.CENTER_LEFT);
 		
-		getChildren().addAll(header, cardRow);
+		getChildren().addAll(cardRow);
 		refresh(false);
 	}
 	
 	//refresh card display
 	//isTarget = someone is about to draw from this player
 	public void refresh(boolean isTarget) {
-		//clear card row first
-		cardRow.getChildren().clear();
-		
-		//rebuild
+		/* TEXT REFRESH COMMENTED OUT
 		nameLabel.setText(player.getName());
 		countLabel.setText("(" + player.handSize() + " cards)");
+		*/
 		
 		if (player.getIsOut()) {
+			/*
 			statusLabel.setText("SAFE");
 			statusLabel.setStyle(statusLabel.getStyle().replace("#7ab893", "#4dc880"));
+			*/
 			setStyle(getStyle() + "-fx-opacity: 0.5;");
+			cardRow.getChildren().clear(); // Safely clear cards
 			return;
 		}
 		
-		//set status label based on draw state
+		/* timer logic moved to player plate
 		switch (player.getDrawState()) {
 			case SKIPPED -> statusLabel.setText("SKIPPED");
 			case COOLDOWN -> statusLabel.setText(
@@ -100,12 +95,24 @@ public class PlayerHandView extends VBox{
 					);
 			default -> statusLabel.setText(isTarget ? "Draw here": "");
 		}
+		*/
 		
-		//create card buttons
-		List<Card> hand = player.getHand();
-		for (int i = 0; i < hand.size(); i++) {
-		    Button btn = createCardButton(hand.get(i), i, isTarget);
-		    cardRow.getChildren().add(btn);
+		// rebuild cards if they changed
+		List<Card> currentHand = player.getHand();
+		boolean handChanged = !lastHandSnapshot.equals(currentHand);
+		boolean targetChanged = (lastTargetStatus != isTarget);
+		
+		if (handChanged || targetChanged) {
+			cardRow.getChildren().clear();
+			
+			for (int i = 0; i < currentHand.size(); i++) {
+				Button btn = createCardButton(currentHand.get(i), i, isTarget);
+				cardRow.getChildren().add(btn);
+			}
+			
+			//save the current state so it doesn't rebuild next time
+			lastHandSnapshot = new ArrayList<>(currentHand);
+			lastTargetStatus = isTarget;
 		}
 	}
 	
@@ -131,43 +138,42 @@ public class PlayerHandView extends VBox{
 				"-fx-cursor: default;"
 			);
 		} else if (isTarget) {
-		    btn.setText("?");
-		    final int capturedIndex = index;
-		    btn.setStyle(
-		        "-fx-font-family: 'DM Mono', monospace;" +
-		        "-fx-font-size: 18px;" +
-		        "-fx-text-fill: #e8c87a;" +
-		        "-fx-background-color: #1c4d8c;" +
-		        "-fx-border-color: #4a90d9;" +
-		        "-fx-border-width: 2;" +
-		        "-fx-border-radius: 6;" +
-		        "-fx-background-radius: 6;" +
-		        "-fx-min-width: 44px;" +
-		        "-fx-min-height: 60px;" +
-		        "-fx-cursor: hand;"
-		    );
-		    //fires immediately on press
-		    btn.setOnMousePressed(e -> {
-		        if (onCardClicked != null) onCardClicked.accept(capturedIndex);
-		    });
-		    btn.setOnMouseEntered(e -> btn.setOpacity(0.7));
-		    btn.setOnMouseExited(e -> btn.setOpacity(1.0));
+			btn.setText("?");
+			final int capturedIndex = index;
+			btn.setStyle(
+				"-fx-font-family: 'DM Mono', monospace;" +
+				"-fx-font-size: 18px;" +
+				"-fx-text-fill: #e8c87a;" +
+				"-fx-background-color: #1c4d8c;" +
+				"-fx-border-color: #4a90d9;" +
+				"-fx-border-width: 2;" +
+				"-fx-border-radius: 6;" +
+				"-fx-background-radius: 6;" +
+				"-fx-min-width: 44px;" +
+				"-fx-min-height: 60px;" +
+				"-fx-cursor: hand;"
+			);
+			//fires immediately on press
+			btn.setOnMousePressed(e -> {
+				if (onCardClicked != null) onCardClicked.accept(capturedIndex);
+			});
+			btn.setOnMouseEntered(e -> btn.setOpacity(0.7));
+			btn.setOnMouseExited(e -> btn.setOpacity(1.0));
 		} else {
 			//unclickable
 			btn.setText("▪");
-            btn.setStyle(
-                "-fx-font-size: 18px;" +
-                "-fx-text-fill: #3a6e8a;" +
-                "-fx-background-color: #1a3a55;" +
-                "-fx-border-color: #2e5a75;" +
-                "-fx-border-width: 1;" +
-                "-fx-border-radius: 6;" +
-                "-fx-background-radius: 6;" +
-                "-fx-min-width: 44px;" +
-                "-fx-min-height: 60px;" +
-                "-fx-cursor: default;"
-            );
-
+			btn.setStyle(
+				"-fx-font-size: 18px;" +
+				"-fx-text-fill: #3a6e8a;" +
+				"-fx-background-color: #1a3a55;" +
+				"-fx-border-color: #2e5a75;" +
+				"-fx-border-width: 1;" +
+				"-fx-border-radius: 6;" +
+				"-fx-background-radius: 6;" +
+				"-fx-min-width: 44px;" +
+				"-fx-min-height: 60px;" +
+				"-fx-cursor: default;"
+			);
 		}
 		
 		return btn;
@@ -179,5 +185,12 @@ public class PlayerHandView extends VBox{
 	
 	public Player getPlayer() {
 		return player;
+	}
+	
+	public Node getCardNode(int index) {
+		if (index >= 0 && index < cardRow.getChildren().size()) {
+			return cardRow.getChildren().get(index);
+		}
+		return this; // Fallback to the whole box if the card isn't found
 	}
 }
