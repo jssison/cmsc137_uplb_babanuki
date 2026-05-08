@@ -1,9 +1,3 @@
-/**
- * 
- */
-/**
- * 
- */
 module uplb_babanuki {
     requires javafx.controls;
     requires javafx.fxml;
@@ -11,4 +5,7 @@ module uplb_babanuki {
 
     exports application to javafx.graphics;
     opens application to javafx.graphics;
+
+    exports network;
+    opens network;
 }

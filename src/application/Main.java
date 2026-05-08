@@ -3,47 +3,78 @@ package application;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import network.GameClient;
+import network.GameServer;
 import ui.GameView;
 import ui.MainMenu;
+import ui.NetworkLobby;
 
-public class Main extends Application{
+public class Main extends Application {
 	private Stage window;
 	private Scene mainScene;
-	
+
 	@Override
 	public void start(Stage primaryStage) {
 		this.window = primaryStage;
 		window.setTitle("UPLB Babanuki");
-
-		// Show the Main Menu initially
 		showMainMenu();
-
 		window.show();
 	}
-	
+
 	private void showMainMenu() {
 		MainMenu menu = new MainMenu(
-			// Callback 1: Singleplayer Clicked
-			playerName -> startGame(playerName, false), 
-			
-			// Callback 2: Multiplayer Clicked
-			playerName -> {
-				System.out.println("Multiplayer coming soon! Starting Singleplayer for now.");
-				startGame(playerName, true); 
-			}
+			// Singleplayer
+			playerName -> startSingleplayer(playerName),
+
+			// Multiplayer → go to lobby
+			playerName -> showNetworkLobby()
 		);
 
-		// Set the window size (adjust 1000x700 to whatever looks best for you)
-		mainScene = new Scene(menu, 1000, 700); 
+		mainScene = new Scene(menu, 1000, 700);
 		window.setScene(mainScene);
 	}
 
-	private void startGame(String playerName, boolean isMultiplayer) {
-		// Create the game, passing in the custom name!
-		GameView game = new GameView(playerName, () -> showMainMenu());
-		
-		// Swap the root of the scene to the game layout
+	private void startSingleplayer(String playerName) {
+		GameView game = new GameView(playerName, this::showMainMenu);
 		mainScene.setRoot(game);
+	}
+
+	// ── Multiplayer lobby ────────────────────────────────────────────────────
+
+	private void showNetworkLobby() {
+		NetworkLobby lobby = new NetworkLobby(
+			// onHostReady: server running + host connected as client
+			(server, client) -> startMultiplayerView(client, server),
+
+			// onJoinReady: connected to a remote server
+			(client) -> startMultiplayerView(client, null),
+
+			// onCancel: back to menu
+			this::showMainMenu
+		);
+		mainScene.setRoot(lobby);
+	}
+
+	/**
+	 * Launch the multiplayer game view.
+	 * @param client  connected GameClient (always non-null)
+	 * @param server  non-null only if this machine is the host
+	 */
+	private void startMultiplayerView(GameClient client, GameServer server) {
+		// TODO: replace placeholder with MultiplayerGameView once it's built
+		javafx.scene.control.Label placeholder = new javafx.scene.control.Label(
+			"Connected as \"" + client.getPlayerName() + "\" (slot " + client.mySlot + ").\n"
+			+ "MultiplayerGameView — coming next!"
+		);
+		placeholder.setStyle(
+			"-fx-font-family: 'DM Sans', sans-serif;" +
+			"-fx-font-size: 18px;" +
+			"-fx-text-fill: #e8c87a;" +
+			"-fx-background-color: #122a1e;" +
+			"-fx-padding: 40;"
+		);
+		placeholder.setWrapText(true);
+		mainScene.setRoot(new javafx.scene.layout.StackPane(placeholder));
 	}
 
 	public static void main(String[] args) {
