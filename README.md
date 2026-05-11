@@ -1,7 +1,17 @@
-## TODO
-### Logic
-1. Human Player can't be declared safe (no cards left). Program always asks the player to draw.
-2. Duplicate trap effects
+## How to run JAR file
+If errors are encountered, do the following:
 
-### UI
-1. Flickering card when drawing cards
+```bash
+sudo apt update
+sudo apt install openjfx
+
+java --module-path /usr/share/openjfx/lib \
+     --add-modules javafx.controls,javafx.fxml \
+     -jar "UPLB Babanuki.jar"
+```
+
+Else,
+```bash
+chmod +x 'UPLB Babanuki.jar'
+java -jar 'UPLB Babanuki.jar'
+```
