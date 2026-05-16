@@ -32,6 +32,8 @@ public class NetworkLobby extends VBox {
     private final BiConsumer<GameServer, GameClient> onHostReady;
     private final Consumer<GameClient>               onJoinReady;
     private final Runnable                           onCancel;
+    private final String                             playerName;
+
 
     // ── Fields ────────────────────────────────────────────────────────────────
 
@@ -52,10 +54,12 @@ public class NetworkLobby extends VBox {
     // ── Constructor ───────────────────────────────────────────────────────────
 
     public NetworkLobby(
+            String                             playerName,
             BiConsumer<GameServer, GameClient> onHostReady,
             Consumer<GameClient>               onJoinReady,
             Runnable                           onCancel) {
 
+        this.playerName  = playerName;
         this.onHostReady = onHostReady;
         this.onJoinReady = onJoinReady;
         this.onCancel    = onCancel;
@@ -121,8 +125,8 @@ public class NetworkLobby extends VBox {
         cpuSpinner.setEditable(true);
         cpuSpinner.setMaxWidth(100);
 
-        // Your name
-        TextField hostNameField = new TextField("Player 1");
+        // pre-filled from main menu
+        TextField hostNameField = new TextField(playerName != null && !playerName.isBlank() ? playerName : "Player 1");
         hostNameField.setMaxWidth(200);
 
         hostStartBtn = makeButton("Start Server & Host", "#2e6644", "#e8c87a");
@@ -168,7 +172,7 @@ public class NetworkLobby extends VBox {
         joinPortField = new TextField(String.valueOf(GameServer.DEFAULT_PORT));
         joinPortField.setMaxWidth(120);
 
-        joinNameField = new TextField("Player 2");
+        joinNameField = new TextField(playerName != null && !playerName.isBlank() ? playerName : "Player 2");
         joinNameField.setMaxWidth(200);
 
         joinConnectBtn = makeButton("Connect", "#2e6644", "#e8c87a");
@@ -250,6 +254,7 @@ public class NetworkLobby extends VBox {
             @Override public void onGameOver(String[] names)       {}
             @Override public void onChat(String s, String txt)     { appendLog(s + ": " + txt); }
             @Override public void onDisconnect(String reason)      { appendLog("[Disconnected] " + reason); }
+            @Override public void onHand(String[] entries)       { /* lobby ignores hand */ }
         });
     }
 

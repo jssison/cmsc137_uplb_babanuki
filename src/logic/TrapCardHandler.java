@@ -116,7 +116,7 @@ public class TrapCardHandler {
 	    state.log("UNO! " + activator.getName() + " stole a card from " + target.getName() + ".");
 	    
 	    // Check if the stolen card created a new pair
-	    List<Card> newDiscards = activator.discardPairs();
+	    List<Card> newDiscards = activator.discardNonTrapPairs();
 	    if (!newDiscards.isEmpty()) {
 	        state.log(activator.getName() + " discards " + (newDiscards.size() / 2) + " pair(s) after UNO steal.");
 	        handleDiscardsNoChain(newDiscards, activator, state, chooser);
@@ -173,7 +173,7 @@ public class TrapCardHandler {
 		GameState state, 
 		TargetChooser chooser
 	) {
-		//left intentionally empty to supress trap effects chaining
+		state.log(activator.getName() + " discarded pairs after UNO steal (trap effects suppressed).");
 	}
 	
 	//target chooser interface

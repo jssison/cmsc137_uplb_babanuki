@@ -50,8 +50,14 @@ public class Message {
 
     // ── Log event broadcast ──────────────────────────────────────────────────
 
-    /** Server → All: a game-log line to display in the EventLog */
+    /** server → all: a game-log line to display in the EventLog */
     public static final String LOG          = "LOG";
+
+    /** server → specific client: that client's own hand cards, comma-separated */
+    public static final String HAND         = "HAND";
+
+    /** client → server: human plays a trap pair; payload is trap name e.g. "SINGKO" */
+    public static final String TRAP_PLAY    = "TRAP_PLAY";
 
     // ── Fields ───────────────────────────────────────────────────────────────
 
@@ -132,6 +138,13 @@ public class Message {
 
     public static String error(String reason) {
         return ERROR + "|" + reason;
+    }
+
+    public static String trapPlay(String trapName) { return TRAP_PLAY + "|" + trapName; }
+
+    // hand|slot|card1,card2,...
+    public static String hand(int slot, String cardsCsv) {
+        return HAND + "|" + slot + "|" + cardsCsv;
     }
 
     // ── Convenience getters ───────────────────────────────────────────────────

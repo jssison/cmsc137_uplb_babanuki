@@ -6,218 +6,260 @@ import model.GameState;
 import model.Player;
 
 import java.util.List;
-import java.util.concurrent.CountDownLatch; // NEW IMPORT!
+import java.util.concurrent.CountDownLatch;
 
 public class GameLoop implements Runnable {
-	//cooldowns
-	private static final long AI_COOLDOWN_MS = 4000;
-	private static final long HUMAN_COOLDOWN_MS = 1500; //too op if no cooldown
-	private static final long TICK_MS = 100;
-	
-	private static final long AFK_TIMEOUT_MS = 15000; //for players taking too long to draw
+	private static final long AI_COOLDOWN_MS    = 4000;
+	private static final long HUMAN_COOLDOWN_MS = 1500;
+	private static final long TICK_MS           = 100;
+	private static final long AFK_TIMEOUT_MS    = 15000;
+
 	private long humanReadyTimestamp = 0;
 	private final GameState state;
 	private volatile boolean isRunning = true;
-	
-	// for new free-for-all 
+
+	// pending human draw (free-for-all)
 	private volatile Player pendingTargetPlayer = null;
-	private volatile int pendingCardIndex = -1;
-	
+	private volatile int    pendingCardIndex    = -1;
+
+	// pending human trap play — set by ui when player hits "play"
+	private volatile Card.Trap pendingHumanTrap = null;
+
+	// latch held while a trap dialog is open — freezes the whole loop
+	private volatile CountDownLatch trapPauseLatch = null;
+
 	private TrapCardHandler.TargetChooser targetChooser;
-	
-	// NEW: The callback interface so the backend can trigger UI animations
+
 	public interface AnimationCallback {
 		void playStealAnimation(Player stealer, Player target, int cardIndex, Runnable onComplete);
 		void playDiscardAnimation(Player player, List<Card> discardedCards);
 	}
 	private AnimationCallback animationCallback;
-	
-	//constructor (UPDATED to accept the callback)
+
 	public GameLoop(GameState state, TrapCardHandler.TargetChooser targetChooser, AnimationCallback animationCallback) {
-		this.state = state;
-		this.targetChooser = targetChooser;
+		this.state             = state;
+		this.targetChooser     = targetChooser;
 		this.animationCallback = animationCallback;
 	}
-	
+
 	@Override
 	public void run() {
-		//mark game start
 		state.markStarted();
-		
 		while (isRunning && !state.isFinished()) {
+			// if a trap dialog is open, block here until it resolves
+			CountDownLatch latch = trapPauseLatch;
+			if (latch != null) {
+				try { latch.await(); } catch (InterruptedException e) {
+					Thread.currentThread().interrupt(); break;
+				}
+			}
+
 			tick();
-			try {
-				Thread.sleep(TICK_MS);
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-				break;
+			try { Thread.sleep(TICK_MS); } catch (InterruptedException e) {
+				Thread.currentThread().interrupt(); break;
 			}
 		}
 	}
-	
+
 	private void tick() {
 		for (Player player : state.getPlayers()) {
 			if (state.isFinished() || !isRunning) break;
-			
-			if (player.getIsOut()) { continue; }
-			
+			if (player.getIsOut()) continue;
+
 			player.refreshState();
-			
+
 			if (!player.canDraw()) {
-				//check if player is skipped
 				if (player.getDrawState() == Player.DrawState.SKIPPED) {
 					player.consumeSkip();
 					player.startCooldown(player.getIsHuman() ? HUMAN_COOLDOWN_MS : AI_COOLDOWN_MS);
 					state.log(player.getName() + " was skipped.");
 					Platform.runLater(state::notifyStateChanged);
 				}
-				//else continue
 				continue;
 			}
-			
+
 			if (player.getIsHuman()) {
 				processHumanTick(player);
 			} else {
 				processAITick(player);
 			}
 		}
-		
-		//check for win/lose
+
 		Platform.runLater(() -> {
 			state.checkEndConditions();
 			state.notifyStateChanged();
 		});
 	}
-	
-	//human tick
+
+	// human tick — waits for click input or afk timeout
 	private void processHumanTick(Player human) {
-		if (humanReadyTimestamp == 0) {
-			humanReadyTimestamp = System.currentTimeMillis();
-		}
-		
-		//new free for all logic
+		if (humanReadyTimestamp == 0) humanReadyTimestamp = System.currentTimeMillis();
+
 		if (pendingTargetPlayer == null || pendingCardIndex == -1) {
 			if (System.currentTimeMillis() - humanReadyTimestamp > AFK_TIMEOUT_MS) {
-				state.log(human.getName() + " took too long! Auto-drawing...");
-				Player target = human.getNextDrawTarget(); 
+				state.log(human.getName() + " took too long! auto-drawing...");
+				Player target = human.getNextDrawTarget();
 				if (target != null && target.handSize() > 0) {
-					int randomCardIndex = (int)(Math.random() * target.handSize());
-					// USE ANIMATED DRAW FOR AFK!
-					animatedPerformDraw(human, target, randomCardIndex); 
+					int idx = (int)(Math.random() * target.handSize());
+					animatedPerformDraw(human, target, idx);
 				}
 				humanReadyTimestamp = 0;
 				human.startCooldown(HUMAN_COOLDOWN_MS);
 			}
-			return; 
-		}
-		
-		Player target = pendingTargetPlayer;
-		int index = pendingCardIndex;
-		
-		pendingTargetPlayer = null;
-		pendingCardIndex = -1;
-		
-		if (target.handSize() == 0) {
-			state.log("No valid target to draw from");
 			return;
 		}
-		
-		if (index < 0 || index >= target.handSize()) { index = 0; }
-		
-		// Standard performDraw, because the UI already animated the human click!
+
+		Player target = pendingTargetPlayer;
+		int index     = pendingCardIndex;
+		pendingTargetPlayer = null;
+		pendingCardIndex    = -1;
+
+		if (target.handSize() == 0) { state.log("no valid target to draw from"); return; }
+		if (index < 0 || index >= target.handSize()) index = 0;
+
 		performDraw(human, target, index);
-		
 		humanReadyTimestamp = 0;
 		human.startCooldown(HUMAN_COOLDOWN_MS);
 	}
-	
-	//for UI
+
+	// called by ui when player clicks a card
 	public void submitHumanDraw(Player target, int cardIndex) {
-		// new free for all logic
 		this.pendingTargetPlayer = target;
-		this.pendingCardIndex = cardIndex;
+		this.pendingCardIndex    = cardIndex;
 	}
-	
-	//AI tick
+
+	// called by ui when player hits "play" on a trap pair in their hand
+	public void submitHumanTrapPlay(Card.Trap trap) {
+		this.pendingHumanTrap = trap;
+	}
+
+	// ai tick — draws then immediately plays any trap pairs
 	private void processAITick(Player ai) {
 		Player target = ai.getNextDrawTarget();
-		if (target == null || target.handSize() == 0) { return; }
-		
+		if (target == null || target.handSize() == 0) return;
+
 		int index = (int)(Math.random() * target.handSize());
-		
-		// THE NEW LOGIC: Use the animated draw instead of instantly moving data!
 		animatedPerformDraw(ai, target, index);
-		
+
+		// auto-play any trap pairs the ai is now holding
+		playPendingTrapPairs(ai);
+
 		long variance = (long)(Math.random() * 1000);
 		ai.startCooldown(AI_COOLDOWN_MS + variance);
 	}
 
-	// NEW METHOD: Halts the GameLoop Thread while the UI plays the animation
+	// plays all trap pairs for a given player (used by ai)
+	private void playPendingTrapPairs(Player player) {
+		List<Card.Trap> pending = player.getPendingTrapPairs();
+		for (Card.Trap trap : pending) {
+			List<Card> discarded = player.removeTrapPair(trap);
+			if (discarded.isEmpty()) continue;
+
+			state.log(player.getName() + " plays " + trap.name() + " trap pair!");
+			if (animationCallback != null)
+				animationCallback.playDiscardAnimation(player, discarded);
+
+			List<model.Player> targets = state.getActivePlayers().stream()
+				.filter(p -> p != player && p.handSize() > 0)
+				.toList();
+
+			if (!targets.isEmpty()) {
+				// build a fake discard list containing one card so handleDiscards fires
+				TrapCardHandler.handleDiscards(discarded, player, state, targetChooser);
+			}
+		}
+	}
+
+	// freezes the loop, plays animation, then does the actual draw
 	private void animatedPerformDraw(Player drawer, Player target, int cardIndex) {
 		if (animationCallback != null) {
-			CountDownLatch waitForAnimation = new CountDownLatch(1);
-			
-			// Trigger UI animation
-			animationCallback.playStealAnimation(drawer, target, cardIndex, () -> {
-				waitForAnimation.countDown(); // UI tells us it finished!
-			});
-			
-			// Freeze GameLoop until countDown() happens
-			try {
-				waitForAnimation.await();
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-				return;
+			CountDownLatch wait = new CountDownLatch(1);
+			animationCallback.playStealAnimation(drawer, target, cardIndex, wait::countDown);
+			try { wait.await(); } catch (InterruptedException e) {
+				Thread.currentThread().interrupt(); return;
 			}
 		}
-		
 		if (state.isFinished() || !isRunning) return;
-		
-		// Now actually draw the card
 		performDraw(drawer, target, cardIndex);
 	}
-	
-	//draw logic
+
+	// core draw logic
 	private void performDraw(Player drawer, Player target, int cardIndex) {
 		if (target.handSize() == 0) return;
-		if (cardIndex < 0 || cardIndex >= target.handSize()) {
-			cardIndex = Math.max(0, target.handSize() - 1); 
-		}
-		
+		if (cardIndex < 0 || cardIndex >= target.handSize())
+			cardIndex = Math.max(0, target.handSize() - 1);
+
 		Card drawn = target.takeCard(cardIndex);
 		drawer.addCard(drawn);
-		
 		state.log(drawer.getName() + " drew a card from " + target.getName());
-		
-		//Discard pairs
-		List<Card> discarded = drawer.discardPairs();
-		
+
+		// only discard non-trap pairs — trap pairs stay until played
+		List<Card> discarded = drawer.discardNonTrapPairs();
+
 		if (!discarded.isEmpty()) {
-			int pairs = discarded.size() / 2;
-			state.log(drawer.getName() + " discarded " + pairs + " pairs");
-			
-			if (animationCallback != null) {
+			state.log(drawer.getName() + " discarded " + (discarded.size() / 2) + " pair(s)");
+			if (animationCallback != null)
 				animationCallback.playDiscardAnimation(drawer, discarded);
-			}
-			
-			//check if any trap cards were discarded
-			boolean hasTrap = discarded.stream().anyMatch(Card::isTrap);
-			if (hasTrap) {
-				//handle trap cards
-				TrapCardHandler.handleDiscards(discarded, drawer, state, targetChooser);
-			}
 		}
-		
+
+		// notify ui so it can show play buttons if a trap pair landed
 		drawer.advanceDrawPointer();
-		
-		//update UI
 		Platform.runLater(() -> {
 			state.checkEndConditions();
 			state.notifyStateChanged();
 		});
 	}
-	
-	public void stop() {
-		isRunning = false;
+
+	// called by TrapCardHandler (via targetChooser) to pause loop during human dialog
+	// returns a latch the caller should countDown() when the dialog closes
+	public CountDownLatch pauseForTrapDialog() {
+		CountDownLatch latch = new CountDownLatch(1);
+		trapPauseLatch = latch;
+		return latch;
 	}
+
+	// called after latch is counted down to clear the pause
+	public void resumeFromTrapDialog() {
+		trapPauseLatch = null;
+	}
+
+	// handle a human-submitted trap play
+	// called from GameView's refresh loop when pendingHumanTrap is set
+	public void processHumanTrapPlay(Player human) {
+		Card.Trap trap = pendingHumanTrap;
+		if (trap == null) return;
+		pendingHumanTrap = null;
+
+		List<Card> discarded = human.removeTrapPair(trap);
+		if (discarded.isEmpty()) return;
+
+		state.log(human.getName() + " plays " + trap.name() + " trap pair!");
+		if (animationCallback != null)
+			animationCallback.playDiscardAnimation(human, discarded);
+
+		List<Player> targets = state.getActivePlayers().stream()
+			.filter(p -> p != human && p.handSize() > 0)
+			.toList();
+
+		if (!targets.isEmpty()) {
+			// pause the loop while dialog is open
+			CountDownLatch latch = pauseForTrapDialog();
+			// wrap chooser to release latch after choice
+			TrapCardHandler.TargetChooser pausingChooser = (prompt, opts, onChosen) ->
+				targetChooser.choose(prompt, opts, chosen -> {
+					onChosen.accept(chosen);
+					resumeFromTrapDialog();
+					latch.countDown();
+				});
+
+			TrapCardHandler.handleDiscards(discarded, human, state, pausingChooser);
+		}
+
+		Platform.runLater(() -> {
+			state.checkEndConditions();
+			state.notifyStateChanged();
+		});
+	}
+
+	public void stop() { isRunning = false; }
 }

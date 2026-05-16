@@ -114,7 +114,7 @@ public class GameServer {
 
         // Discard initial pairs
         for (Player p : players) {
-            List<Card> discarded = p.discardPairs();
+            List<Card> discarded = p.discardNonTrapPairs();
             if (!discarded.isEmpty()) {
                 gameState.log(p.getName() + " discarded " + (discarded.size() / 2) + " pair(s) at start");
             }
@@ -194,11 +194,23 @@ public class GameServer {
 
     void onMessage(ClientHandler sender, Message msg) {
         switch (msg.type) {
-            case Message.DRAW -> handleDraw(sender, msg);
+            case Message.DRAW      -> handleDraw(sender, msg);
             case Message.TRAP_CHOICE -> handleTrapChoice(sender, msg);
-            case Message.CHAT -> broadcast(Message.chat(sender.playerName, msg.part(0)));
+            case Message.TRAP_PLAY -> handleTrapPlay(sender, msg);
+            case Message.CHAT      -> broadcast(Message.chat(sender.playerName, msg.part(0)));
             default -> sender.send(Message.error("Unknown message type: " + msg.type));
         }
+    }
+
+    private void handleTrapPlay(ClientHandler sender, Message msg) {
+        if (gameLoop == null || sender.slot >= players.size()) return;
+        String trapName = msg.part(0);
+        model.Card.Trap trap;
+        try { trap = model.Card.Trap.valueOf(trapName); }
+        catch (IllegalArgumentException e) { sender.send(Message.error("unknown trap: " + trapName)); return; }
+        Player human = players.get(sender.slot);
+        gameLoop.submitHumanTrapPlay(trap);
+        gameLoop.processHumanTrapPlay(human);
     }
 
     private void handleDraw(ClientHandler sender, Message msg) {
@@ -274,18 +286,41 @@ public class GameServer {
 
     private void broadcastState() {
         if (gameState == null) return;
-        StringBuilder sb = new StringBuilder();
         List<Player> ps = gameState.getPlayers();
+
+        // build the shared part (name:handSize:drawState[:OUT]) for all slots
+        String[] slotEntries = new String[ps.size()];
         for (int i = 0; i < ps.size(); i++) {
             Player p = ps.get(i);
-            if (i > 0) sb.append(",");
-            // Format: name:handSize:drawState[:OUT]
-            sb.append(p.getName())
-              .append(":").append(p.handSize())
-              .append(":").append(p.getDrawState().name());
-            if (p.getIsOut()) sb.append(":OUT");
+            StringBuilder e = new StringBuilder();
+            e.append(p.getName())
+             .append(":").append(p.handSize())
+             .append(":").append(p.getDrawState().name());
+            if (p.getIsOut()) e.append(":OUT");
+            slotEntries[i] = e.toString();
         }
-        broadcast(Message.state(sb.toString()));
+
+        // send each human client a personalised STATE that appends their own hand
+        for (ClientHandler h : handlers) {
+            if (h.slot < 0 || h.slot >= ps.size()) continue;
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < slotEntries.length; i++) {
+                if (i > 0) sb.append(",");
+                sb.append(slotEntries[i]);
+                // append hand cards only for this client's own slot
+                if (i == h.slot) {
+                    List<model.Card> hand = ps.get(i).getHand();
+                    if (!hand.isEmpty()) {
+                        sb.append(":");
+                        for (int j = 0; j < hand.size(); j++) {
+                            if (j > 0) sb.append(";");
+                            sb.append(hand.get(j).toString());
+                        }
+                    }
+                }
+            }
+            h.send(Message.state(sb.toString()));
+        }
 
         if (gameState.isFinished()) broadcastGameOver();
     }

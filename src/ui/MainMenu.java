@@ -4,18 +4,25 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.Spinner;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class MainMenu extends VBox {
 
-	public MainMenu(Consumer<String> onSinglePlayerStart, Consumer<String> onMultiPlayerStart) {
+	/**
+	 * @param onSinglePlayerStart  called with (playerName, cpuCount)
+	 * @param onMultiPlayerStart   called with (playerName) — goes to NetworkLobby
+	 */
+	public MainMenu(BiConsumer<String, Integer> onSinglePlayerStart, Consumer<String> onMultiPlayerStart) {
 		this.setAlignment(Pos.CENTER);
 		this.setSpacing(25);
 		this.setStyle("-fx-background-color: #122a1e;");
 
-		// 1. Title
+		// Title
 		Label title = new Label("UPLB Babanuki");
 		title.setStyle(
 			"-fx-font-family: 'Playfair Display', serif;" +
@@ -25,7 +32,7 @@ public class MainMenu extends VBox {
 			"-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.6), 10, 0, 0, 5);"
 		);
 
-		// 2. Name Input Area
+		// Name input
 		VBox inputArea = new VBox(10);
 		inputArea.setAlignment(Pos.CENTER);
 		inputArea.setMaxWidth(300);
@@ -46,10 +53,25 @@ public class MainMenu extends VBox {
 			"-fx-background-radius: 6;" +
 			"-fx-padding: 10;"
 		);
-		
+
 		inputArea.getChildren().addAll(nameLabel, nameInput);
 
-		// 3. Buttons
+		// CPU count picker
+		HBox cpuRow = new HBox(12);
+		cpuRow.setAlignment(Pos.CENTER);
+		cpuRow.setMaxWidth(300);
+
+		Label cpuLabel = new Label("CPU opponents:");
+		cpuLabel.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #8ca898;");
+
+		Spinner<Integer> cpuSpinner = new Spinner<>(1, 3, 3);
+		cpuSpinner.setEditable(false);
+		cpuSpinner.setPrefWidth(80);
+		cpuSpinner.setStyle("-fx-background-color: #1a3a2a; -fx-border-color: #2e6644; -fx-border-radius: 6;");
+
+		cpuRow.getChildren().addAll(cpuLabel, cpuSpinner);
+
+		// Buttons
 		VBox buttonArea = new VBox(15);
 		buttonArea.setAlignment(Pos.CENTER);
 
@@ -57,12 +79,11 @@ public class MainMenu extends VBox {
 		singlePlayerBtn.setPrefWidth(250);
 		singlePlayerBtn.setOnAction(e -> {
 			String name = nameInput.getText().trim();
-			if (name.isEmpty()) name = "Player 1"; // Default name fallback
-			onSinglePlayerStart.accept(name);
+			if (name.isEmpty()) name = "Player 1";
+			onSinglePlayerStart.accept(name, cpuSpinner.getValue());
 		});
 
-		// Same func as single player button for now
-		Button multiPlayerBtn = makeButton("Start Multiplayer", "#2e6644", "#e8c87a");
+		Button multiPlayerBtn = makeButton("Multiplayer (LAN)", "#2e6644", "#e8c87a");
 		multiPlayerBtn.setPrefWidth(250);
 		multiPlayerBtn.setOnAction(e -> {
 			String name = nameInput.getText().trim();
@@ -72,11 +93,9 @@ public class MainMenu extends VBox {
 
 		buttonArea.getChildren().addAll(singlePlayerBtn, multiPlayerBtn);
 
-		// Add everything to the screen
-		this.getChildren().addAll(title, inputArea, buttonArea);
+		this.getChildren().addAll(title, inputArea, cpuRow, buttonArea);
 	}
 
-	// Helper for clean buttons
 	private Button makeButton(String text, String bg, String fg) {
 		Button btn = new Button(text);
 		btn.setStyle(

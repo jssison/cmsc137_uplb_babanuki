@@ -60,8 +60,11 @@ public class GameClient {
         /** A chat message arrived. */
         void onChat(String senderName, String text);
 
-        /** Connection dropped or server error. */
+        /** connection dropped or server error. */
         void onDisconnect(String reason);
+
+        /** server sends this client its own hand. each entry: "displayStr:RED|BLACK:trapName|NONE" */
+        void onHand(String[] cardEntries);
     }
 
     // ── Fields ────────────────────────────────────────────────────────────────
@@ -69,7 +72,7 @@ public class GameClient {
     private final String    host;
     private final int       port;
     private final String    playerName;
-    private final Callbacks callbacks;
+    private volatile Callbacks callbacks;
 
     private Socket         socket;
     private PrintWriter    out;
@@ -85,6 +88,11 @@ public class GameClient {
         this.port       = port;
         this.playerName = playerName;
         this.callbacks  = callbacks;
+    }
+
+    // swap callbacks after connect (e.g. lobby -> game view)
+    public void setCallbacks(Callbacks callbacks) {
+        this.callbacks = callbacks;
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -129,7 +137,10 @@ public class GameClient {
         send(Message.trapChoice(targetSlot));
     }
 
-    /** Send a chat message. */
+    /** tell server to play a trap pair. */
+    public void sendTrapPlay(String trapName) { send(Message.trapPlay(trapName)); }
+
+    /** send a chat message. */
     public void sendChat(String text) {
         send(Message.chat(playerName, text));
     }
@@ -192,6 +203,13 @@ public class GameClient {
 
                     case Message.CHAT -> {
                         callbacks.onChat(msg.part(0), msg.part(1));
+                    }
+
+                    case Message.HAND -> {
+                        // part(0)=slot (ignored, always ours), part(1)=cards csv
+                        String cardsCsv = msg.part(1);
+                        String[] entries = cardsCsv.isEmpty() ? new String[0] : cardsCsv.split(",", -1);
+                        callbacks.onHand(entries);
                     }
 
                     case Message.ERROR -> {

@@ -7,38 +7,30 @@ import javafx.scene.control.Button;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
 
-//util imports
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-//model imports
 import model.Card;
 import model.Player;
 
 public class PlayerHandView extends VBox {
 	private final Player player;
-	//true = show card faces, false = show backs
 	private final boolean revealCards;
-	
-	private final FlowPane cardRow = new FlowPane(6,6);
-	
-	/*infos moved to playerPlate
-	private final Label nameLabel = new Label();
-	private final Label statusLabel = new Label();
-	private final Label countLabel = new Label();
-	*/
-	
-	private Consumer<Integer> onCardClicked;
-	
-	private List<Card> lastHandSnapshot = new ArrayList<>();
-	private boolean lastTargetStatus = false;
-	
-	//constructor
+
+	private final FlowPane cardRow = new FlowPane(6, 6);
+
+	private Consumer<Integer>  onCardClicked;
+	private Consumer<Card.Trap> onTrapPlayed; // fired when human hits "play" on a trap pair
+
+	private List<Card>      lastHandSnapshot  = new ArrayList<>();
+	private boolean         lastTargetStatus  = false;
+	private List<Card.Trap> lastPendingTraps  = new ArrayList<>();
+
 	public PlayerHandView(Player player, boolean revealCards) {
-		this.player = player;
+		this.player      = player;
 		this.revealCards = revealCards;
-		
+
 		setMaxWidth(600);
 		setSpacing(6);
 		setPadding(new Insets(10));
@@ -49,80 +41,109 @@ public class PlayerHandView extends VBox {
 			"-fx-border-radius: 8;" +
 			"-fx-background-radius: 8;"
 		);
-		
-		/* 
-		//name label styling
-		nameLabel.setStyle( ... );
-		//status label styling
-		statusLabel.setStyle( ... );
-		//count label styling
-		countLabel.setStyle( ... );
-		
-		HBox header = new HBox(8, nameLabel, countLabel, statusLabel);
-		header.setAlignment(Pos.CENTER_LEFT);
-		*/
-		
+
 		cardRow.setPrefWrapLength(500);
 		cardRow.setAlignment(Pos.CENTER_LEFT);
-		
-		getChildren().addAll(cardRow);
+		getChildren().add(cardRow);
 		refresh(false);
 	}
-	
-	//refresh card display
-	//isTarget = someone is about to draw from this player
+
 	public void refresh(boolean isTarget) {
-		/* TEXT REFRESH COMMENTED OUT
-		nameLabel.setText(player.getName());
-		countLabel.setText("(" + player.handSize() + " cards)");
-		*/
-		
 		if (player.getIsOut()) {
-			/*
-			statusLabel.setText("SAFE");
-			statusLabel.setStyle(statusLabel.getStyle().replace("#7ab893", "#4dc880"));
-			*/
 			setStyle(getStyle() + "-fx-opacity: 0.5;");
-			cardRow.getChildren().clear(); // Safely clear cards
+			cardRow.getChildren().clear();
 			return;
 		}
-		
-		/* timer logic moved to player plate
-		switch (player.getDrawState()) {
-			case SKIPPED -> statusLabel.setText("SKIPPED");
-			case COOLDOWN -> statusLabel.setText(
-						"COOLDOWN " + (player.getRemainingCooldown() / 1000 + 1) + "s"
-					);
-			default -> statusLabel.setText(isTarget ? "Draw here": "");
-		}
-		*/
-		
-		// rebuild cards if they changed
-		List<Card> currentHand = player.getHand();
-		boolean handChanged = !lastHandSnapshot.equals(currentHand);
-		boolean targetChanged = (lastTargetStatus != isTarget);
-		
-		if (handChanged || targetChanged) {
+
+		List<Card>      currentHand   = player.getHand();
+		List<Card.Trap> pendingTraps  = revealCards ? player.getPendingTrapPairs() : new ArrayList<>();
+		boolean handChanged    = !lastHandSnapshot.equals(currentHand);
+		boolean targetChanged  = lastTargetStatus != isTarget;
+		boolean trapsChanged   = !lastPendingTraps.equals(pendingTraps);
+
+		if (handChanged || targetChanged || trapsChanged) {
 			cardRow.getChildren().clear();
-			
+
 			for (int i = 0; i < currentHand.size(); i++) {
-				Button btn = createCardButton(currentHand.get(i), i, isTarget);
-				cardRow.getChildren().add(btn);
+				Card card = currentHand.get(i);
+				// if this card is part of a playable trap pair, show play button instead
+				if (revealCards && card.isTrap() && pendingTraps.contains(card.getTrap())) {
+					// only add the play button once per trap type (first card of pair)
+					boolean alreadyAdded = cardRow.getChildren().stream()
+						.anyMatch(n -> n.getUserData() == card.getTrap());
+					if (!alreadyAdded) {
+						cardRow.getChildren().add(createTrapPlayButton(card, card.getTrap()));
+					} else {
+						// second card of pair — show faded so player sees both cards exist
+						cardRow.getChildren().add(createFadedTrapCard(card));
+					}
+				} else {
+					cardRow.getChildren().add(createCardButton(card, i, isTarget));
+				}
 			}
-			
-			//save the current state so it doesn't rebuild next time
+
 			lastHandSnapshot = new ArrayList<>(currentHand);
 			lastTargetStatus = isTarget;
+			lastPendingTraps = new ArrayList<>(pendingTraps);
 		}
 	}
-	
+
+	// glowing play button shown on trap pairs in the human hand
+	private Button createTrapPlayButton(Card card, Card.Trap trap) {
+		Button btn = new Button(card.toString() + "\n▶ PLAY");
+		btn.setUserData(trap); // used above to detect duplicates
+		btn.setStyle(
+			"-fx-font-family: 'DM Mono', monospace;" +
+			"-fx-font-size: 11px;" +
+			"-fx-font-weight: bold;" +
+			"-fx-text-fill: #122a1e;" +
+			"-fx-background-color: #e8c87a;" +
+			"-fx-border-color: #f0a030;" +
+			"-fx-border-width: 2;" +
+			"-fx-border-radius: 6;" +
+			"-fx-background-radius: 6;" +
+			"-fx-min-width: 44px;" +
+			"-fx-min-height: 60px;" +
+			"-fx-cursor: hand;" +
+			"-fx-effect: dropshadow(three-pass-box, #f0a03099, 8, 0, 0, 0);"
+		);
+		btn.setOnMousePressed(e -> {
+			if (onTrapPlayed != null) onTrapPlayed.accept(trap);
+		});
+		btn.setOnMouseEntered(e -> btn.setOpacity(0.75));
+		btn.setOnMouseExited(e -> btn.setOpacity(1.0));
+		return btn;
+	}
+
+	// second card of a trap pair — shown faded, not clickable
+	private Button createFadedTrapCard(Card card) {
+		String color = card.getSuit().isRed() ? "#cc3333" : "#1a1a2e";
+		Button btn = new Button(card.toString());
+		btn.setStyle(
+			"-fx-font-family: 'DM Mono', monospace;" +
+			"-fx-font-size: 13px;" +
+			"-fx-font-weight: bold;" +
+			"-fx-text-fill: " + color + ";" +
+			"-fx-background-color: #fdf6e3;" +
+			"-fx-border-color: #f0a030;" +
+			"-fx-border-width: 2;" +
+			"-fx-border-radius: 6;" +
+			"-fx-background-radius: 6;" +
+			"-fx-min-width: 44px;" +
+			"-fx-min-height: 60px;" +
+			"-fx-opacity: 0.5;" +
+			"-fx-cursor: default;"
+		);
+		return btn;
+	}
+
 	private Button createCardButton(Card card, int index, boolean isTarget) {
 		Button btn = new Button();
-		
+
 		if (revealCards) {
-			//player hand
+			// human hand — face up, not clickable by self
 			btn.setText(card.toString());
-			String color = card.getSuit().isRed() ? "#cc3333" : "#1a1a2e"; 
+			String color = card.getSuit().isRed() ? "#cc3333" : "#1a1a2e";
 			btn.setStyle(
 				"-fx-font-family: 'DM Mono', monospace;" +
 				"-fx-font-size: 13px;" +
@@ -138,6 +159,7 @@ public class PlayerHandView extends VBox {
 				"-fx-cursor: default;"
 			);
 		} else if (isTarget) {
+			// opponent hand, human can click to draw
 			btn.setText("?");
 			final int capturedIndex = index;
 			btn.setStyle(
@@ -153,14 +175,13 @@ public class PlayerHandView extends VBox {
 				"-fx-min-height: 60px;" +
 				"-fx-cursor: hand;"
 			);
-			//fires immediately on press
 			btn.setOnMousePressed(e -> {
 				if (onCardClicked != null) onCardClicked.accept(capturedIndex);
 			});
 			btn.setOnMouseEntered(e -> btn.setOpacity(0.7));
 			btn.setOnMouseExited(e -> btn.setOpacity(1.0));
 		} else {
-			//unclickable
+			// opponent hand, not a draw target
 			btn.setText("▪");
 			btn.setStyle(
 				"-fx-font-size: 18px;" +
@@ -175,22 +196,18 @@ public class PlayerHandView extends VBox {
 				"-fx-cursor: default;"
 			);
 		}
-		
+
 		return btn;
 	}
-	
-	public void setOnCardClicked(Consumer<Integer> handler) {
-		this.onCardClicked = handler;
-	}
-	
-	public Player getPlayer() {
-		return player;
-	}
-	
+
+	public void setOnCardClicked(Consumer<Integer> handler)  { this.onCardClicked = handler; }
+	public void setOnTrapPlayed(Consumer<Card.Trap> handler) { this.onTrapPlayed  = handler; }
+
+	public Player getPlayer() { return player; }
+
 	public Node getCardNode(int index) {
-		if (index >= 0 && index < cardRow.getChildren().size()) {
+		if (index >= 0 && index < cardRow.getChildren().size())
 			return cardRow.getChildren().get(index);
-		}
-		return this; // Fallback to the whole box if the card isn't found
+		return this;
 	}
 }
