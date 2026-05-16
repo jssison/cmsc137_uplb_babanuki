@@ -288,38 +288,32 @@ public class GameServer {
         if (gameState == null) return;
         List<Player> ps = gameState.getPlayers();
 
-        // build the shared part (name:handSize:drawState[:OUT]) for all slots
-        String[] slotEntries = new String[ps.size()];
+        // build shared STATE: name:handSize:drawState[:OUT] — same for everyone
+        StringBuilder stateSb = new StringBuilder();
         for (int i = 0; i < ps.size(); i++) {
             Player p = ps.get(i);
-            StringBuilder e = new StringBuilder();
-            e.append(p.getName())
-             .append(":").append(p.handSize())
-             .append(":").append(p.getDrawState().name());
-            if (p.getIsOut()) e.append(":OUT");
-            slotEntries[i] = e.toString();
+            if (i > 0) stateSb.append(",");
+            stateSb.append(p.getName())
+                   .append(":").append(p.handSize())
+                   .append(":").append(p.getDrawState().name());
+            if (p.getIsOut()) stateSb.append(":OUT");
         }
+        broadcast(Message.state(stateSb.toString()));
 
-        // send each human client a personalised STATE that appends their own hand
+        // send each human client their own hand as a separate HAND message
+        // format per card: displayStr:RED|BLACK:TRAPNAME|NONE
         for (ClientHandler h : handlers) {
             if (h.slot < 0 || h.slot >= ps.size()) continue;
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < slotEntries.length; i++) {
-                if (i > 0) sb.append(",");
-                sb.append(slotEntries[i]);
-                // append hand cards only for this client's own slot
-                if (i == h.slot) {
-                    List<model.Card> hand = ps.get(i).getHand();
-                    if (!hand.isEmpty()) {
-                        sb.append(":");
-                        for (int j = 0; j < hand.size(); j++) {
-                            if (j > 0) sb.append(";");
-                            sb.append(hand.get(j).toString());
-                        }
-                    }
-                }
+            List<model.Card> hand = ps.get(h.slot).getHand();
+            StringBuilder handSb = new StringBuilder();
+            for (int j = 0; j < hand.size(); j++) {
+                if (j > 0) handSb.append(",");
+                model.Card c = hand.get(j);
+                handSb.append(c.toString())
+                      .append(":").append(c.getSuit().isRed() ? "RED" : "BLACK")
+                      .append(":").append(c.isTrap() ? c.getTrap().name() : "NONE");
             }
-            h.send(Message.state(sb.toString()));
+            h.send(Message.hand(h.slot, handSb.toString()));
         }
 
         if (gameState.isFinished()) broadcastGameOver();
