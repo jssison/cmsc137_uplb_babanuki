@@ -154,7 +154,8 @@ public class MultiplayerGameView extends StackPane {
     // ── callbacks from Main (called after setCallbacks) ───────────────────────
 
     public void onPlayerList(String[] names) {
-        Platform.runLater(() -> {
+    	Platform.runLater(() -> {
+            this.mySlot = client.mySlot; 
             playerNames = names;
             handSizes   = new int[names.length];
             drawStates  = new String[names.length];
@@ -259,7 +260,7 @@ public class MultiplayerGameView extends StackPane {
     // ── card click wiring ─────────────────────────────────────────────────────
 
     private void wireDrawClicks() {
-        MpPlate myPlate = mySlot < playerPlates.size() ? playerPlates.get(mySlot) : null;
+    	MpPlate myPlate = (mySlot >= 0 && mySlot < playerPlates.size()) ? playerPlates.get(mySlot) : null;
 
         for (int i = 0; i < handViews.size(); i++) {
             if (i == mySlot) continue; // can't draw from yourself

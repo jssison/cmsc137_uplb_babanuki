@@ -165,7 +165,7 @@ public class GameServer {
     }
 
     // ── Internal: accept loop ─────────────────────────────────────────────────
-
+    
     private void acceptLoop() {
         while (running && handlers.size() < humanSlots) {
             try {
@@ -179,10 +179,15 @@ public class GameServer {
                 onLog.accept("[Server] Player connected: slot " + slot
                         + " from " + socket.getInetAddress().getHostAddress());
 
-                // If all human slots filled, auto-start
+         
                 if (handlers.size() == humanSlots) {
-                    onLog.accept("[Server] All players connected — starting game.");
-                    startGame();
+                    onLog.accept("[Server] All players connected — starting game in a moment...");
+                    
+                    // Spawn a thread to wait 800ms for all players
+                    new Thread(() -> {
+                        try { Thread.sleep(800); } catch (InterruptedException ignored) {}
+                        startGame();
+                    }).start();
                 }
             } catch (IOException e) {
                 if (running) onLog.accept("[Server] Accept error: " + e.getMessage());
