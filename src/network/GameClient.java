@@ -80,6 +80,9 @@ public class GameClient {
 
     private volatile boolean connected = false;
     public  volatile int     mySlot    = -1; // set after WELCOME
+    public volatile String[] cachedPlayerList = null; 
+    public volatile String[] cachedState = null;      
+    public volatile String[] cachedHand = null;       
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -177,12 +180,13 @@ public class GameClient {
 
                     case Message.PLAYER_LIST -> {
                         String[] names = msg.part(0).split(",", -1);
+                        cachedPlayerList = names; // Save to cache!
                         callbacks.onPlayerList(names);
                     }
 
                     case Message.STATE -> {
-                        // payload: "Alice:12:READY,Bob:8:COOLDOWN:OUT,..."
                         String[] entries = msg.part(0).split(",", -1);
+                        cachedState = entries; // Save to cache!
                         callbacks.onState(entries);
                     }
 
@@ -206,21 +210,28 @@ public class GameClient {
                     }
 
                     case Message.HAND -> {
-                        // part(0)=slot (ignored, always ours), part(1)=cards csv
-                        String cardsCsv = msg.part(1);
-                        String[] entries = cardsCsv.isEmpty() ? new String[0] : cardsCsv.split(",", -1);
-                        callbacks.onHand(entries);
-                    }
+	                    String cardsCsv = msg.part(1);
+	                    String[] entries = cardsCsv.isEmpty() ? new String[0] : cardsCsv.split(",", -1);
+	                    cachedHand = entries; // Save to cache!
+	                    callbacks.onHand(entries);
+	                }
 
+                    
                     case Message.ERROR -> {
                         callbacks.onLog("[ERROR] " + msg.part(0));
                     }
 
+                    
                     default -> {
                         callbacks.onLog("[Client] Unknown message: " + msg.raw);
                     }
                 }
             }
+            
+            if (connected && callbacks != null) {
+                callbacks.onDisconnect("Server closed the connection.");
+            }
+            
         } catch (IOException e) {
             if (connected) {
                 callbacks.onDisconnect("Connection lost: " + e.getMessage());

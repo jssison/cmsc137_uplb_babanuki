@@ -71,6 +71,10 @@ public class MultiplayerGameView extends StackPane {
         this.onReturnToMenu = onReturnToMenu;
         this.mySlot         = client.mySlot;
         buildLayout();
+        
+        if (client.cachedPlayerList != null) onPlayerList(client.cachedPlayerList);
+        if (client.cachedState != null) onState(client.cachedState);
+        if (client.cachedHand != null) onHand(client.cachedHand);
     }
 
     // ── layout (mirrors GameView.buildLayout) ─────────────────────────────────
@@ -89,9 +93,12 @@ public class MultiplayerGameView extends StackPane {
 
         Button disconnectBtn = makeButton("Disconnect", "#2e6644", "#e8c87a");
         disconnectBtn.setOnAction(e -> {
-            client.disconnect();
-            if (server != null) server.stop();
-            onReturnToMenu.run();
+            // UI FRICTION: Ask for confirmation before dropping the socket
+            showConfirmDialog("Are you sure you want to disconnect and abandon your hand?", () -> {
+                client.disconnect();
+                if (server != null) server.stop();
+                onReturnToMenu.run();
+            });
         });
 
         Region spacer = new Region();
@@ -367,6 +374,30 @@ public class MultiplayerGameView extends StackPane {
             dialog.getChildren().add(btn);
         }
 
+        overlayPane.getChildren().setAll(dialog);
+        showOverlay();
+    }
+    
+    private void showConfirmDialog(String message, Runnable onConfirm) {
+        VBox dialog = new VBox(15);
+        dialog.setAlignment(Pos.CENTER);
+        dialog.setPadding(new Insets(28));
+        dialog.setMaxWidth(340);
+        dialog.setStyle("-fx-background-color: #1a3a2a; -fx-border-color: #e05555; -fx-border-width: 2; -fx-border-radius: 12; -fx-background-radius: 12;");
+
+        Label prompt = new Label(message);
+        prompt.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 15px; -fx-text-fill: #fdf6e3; -fx-wrap-text: true; -fx-alignment: center;");
+        
+        Button yesBtn = makeButton("Yes, Disconnect", "#cc3333", "#ffffff");
+        yesBtn.setOnAction(e -> { hideOverlay(); onConfirm.run(); });
+        
+        Button noBtn = makeButton("Cancel", "#2e6644", "#e8c87a");
+        noBtn.setOnAction(e -> hideOverlay());
+
+        HBox btnBox = new HBox(15, noBtn, yesBtn);
+        btnBox.setAlignment(Pos.CENTER);
+        dialog.getChildren().addAll(prompt, btnBox);
+        
         overlayPane.getChildren().setAll(dialog);
         showOverlay();
     }

@@ -68,7 +68,7 @@ class ClientHandler implements Runnable {
             }
         } finally {
             close();
-            server.broadcast(Message.log(playerName + " left the game."));
+            server.onClientDisconnect(this);
         }
     }
 

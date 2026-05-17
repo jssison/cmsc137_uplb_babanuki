@@ -170,16 +170,27 @@ public class GameServer {
         while (running && handlers.size() < humanSlots) {
             try {
                 Socket socket = serverSocket.accept();
+                
+                // THE LOCKDOWN FIX: If game is running, reject the connection instantly!
+                if (gameState != null && gameState.getStatus() == GameState.GameStatus.PLAYING) {
+                    ClientHandler handler = new ClientHandler(socket, -1, this);
+                    handler.send(Message.error("Game is currently in progress. Connections are locked."));
+                    handler.close();
+                    continue; // Go back to listening
+                }
+
+                // --- NORMAL LOBBY LOGIC ---
                 int slot = handlers.size();
                 ClientHandler handler = new ClientHandler(socket, slot, this);
                 handlers.add(handler);
                 Thread t = new Thread(handler, "Client-" + slot);
                 t.setDaemon(true);
                 t.start();
+                
                 onLog.accept("[Server] Player connected: slot " + slot
                         + " from " + socket.getInetAddress().getHostAddress());
 
-         
+                // If all human slots filled, wait 800ms, THEN auto-start
                 if (handlers.size() == humanSlots) {
                     onLog.accept("[Server] All players connected — starting game in a moment...");
                     
@@ -193,6 +204,46 @@ public class GameServer {
                 if (running) onLog.accept("[Server] Accept error: " + e.getMessage());
             }
         }
+    }
+    
+    // ── Internal: handle disconnect & bot takeover ────────────────────────────
+
+    public void onClientDisconnect(ClientHandler handler) {
+        handlers.remove(handler);
+        
+        if (gameState == null || handler.slot < 0 || handler.slot >= players.size()) return;
+        
+        Player p = players.get(handler.slot);
+        if (p.getIsOut()) return; // If they already won/lost, we don't care!
+
+        onLog.accept("[Server] " + p.getName() + " (Slot " + handler.slot + ") disconnected.");
+        
+        // UPDATE LOG: Announce the 3-second freeze
+        broadcast(Message.log(p.getName() + " disconnected! Bot will take over in 3 seconds..."));
+
+        // Spawn the 3-second timer
+        new Thread(() -> {
+            try {
+                Thread.sleep(3000);
+            } catch (InterruptedException ignored) {}
+
+            // The timer is up. Check if the slot is STILL empty!
+            boolean slotStillEmpty = true;
+            for (ClientHandler h : handlers) {
+                if (h.slot == handler.slot) {
+                    slotStillEmpty = false;
+                    break;
+                }
+            }
+
+            // If no one reconnected, flip the switch and let the AI take over!
+            if (slotStillEmpty && !p.getIsOut()) {
+                p.setIsHuman(false);
+                onLog.accept("[Server] Slot " + handler.slot + " abandoned. AI taking over.");
+                broadcast(Message.log(p.getName() + " abandoned the match. Bot took over their hand!"));
+                broadcastState(); // Tell the UI the state changed
+            }
+        }, "DisconnectTimer-" + handler.slot).start();
     }
 
     // ── Internal: handle incoming messages from a client ─────────────────────

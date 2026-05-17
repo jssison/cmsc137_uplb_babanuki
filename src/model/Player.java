@@ -8,7 +8,7 @@ public class Player {
 	public enum DrawState { READY, COOLDOWN, SKIPPED }
 
 	private final String name;
-	private final boolean isHuman;
+	private boolean isHuman;
 	private final List<Card> hand = new ArrayList<>();
 
 	private List<Player> drawRotation = new ArrayList<>();
@@ -201,6 +201,9 @@ public class Player {
 	public boolean getIsHuman()      { return isHuman; }
 	public String getName()          { return name; }
 	public DrawState getDrawState()  { return drawState; }
+	
+	// setter
+	public void setIsHuman(boolean h){ this.isHuman = h; }
 
 	@Override public String toString() { return name; }
 }
