@@ -14,6 +14,9 @@ import java.util.function.Consumer;
 
 public class MainMenu extends VBox {
 
+    private final VBox mainButtons = new VBox(15);
+    private final VBox spConfigBox = new VBox(15);
+
     public MainMenu(BiConsumer<String, Integer> onSinglePlayerStart, Consumer<String> onMultiPlayerStart) {
         this.setAlignment(Pos.CENTER);
         this.setSpacing(30);
@@ -21,97 +24,59 @@ public class MainMenu extends VBox {
 
         // ── Title ─────────────────────────────────────────────────────────────
         Label title = new Label("UPLB Babanuki");
-        title.setStyle(
-            "-fx-font-family: 'Playfair Display', serif;" +
-            "-fx-font-size: 64px;" +
-            "-fx-font-weight: bold;" +
-            "-fx-text-fill: #e8c87a;" +
-            "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.8), 15, 0, 0, 8);"
-        );
-
+        title.setStyle("-fx-font-family: 'Playfair Display', serif; -fx-font-size: 64px; -fx-font-weight: bold; -fx-text-fill: #e8c87a; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.8), 15, 0, 0, 8);");
         Label subtitle = new Label("The Classic Card Game");
-        subtitle.setStyle(
-            "-fx-font-family: 'DM Sans', sans-serif;" +
-            "-fx-font-size: 18px;" +
-            "-fx-text-fill: #8ca898;" +
-            "-fx-font-style: italic;"
-        );
+        subtitle.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 18px; -fx-text-fill: #8ca898; -fx-font-style: italic;");
         VBox titleBox = new VBox(5, title, subtitle);
         titleBox.setAlignment(Pos.CENTER);
         VBox.setMargin(titleBox, new Insets(0, 0, 30, 0));
 
-        // ── Inputs ────────────────────────────────────────────────────────────
-        VBox inputArea = new VBox(15);
-        inputArea.setAlignment(Pos.CENTER);
-        inputArea.setMaxWidth(300);
-
-        Label nameLabel = new Label("ENTER YOUR NAME:");
-        nameLabel.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-weight: bold; -fx-text-fill: #8ca898; -fx-font-size: 12px;");
-        
-        TextField nameInput = new TextField();
-        nameInput.setPromptText("e.g. Oble");
-        nameInput.setStyle(
-            "-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 16px; " +
-            "-fx-background-color: #0d1f16; -fx-text-fill: #fdf6e3; " +
-            "-fx-border-color: #2e6644; -fx-border-radius: 6; -fx-background-radius: 6; -fx-padding: 10;"
-        );
-
-        HBox cpuRow = new HBox(15);
-        cpuRow.setAlignment(Pos.CENTER);
-        Label cpuLabel = new Label("CPU BOTS:");
-        cpuLabel.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-weight: bold; -fx-text-fill: #8ca898; -fx-font-size: 12px;");
-        
-        Spinner<Integer> cpuSpinner = new Spinner<>(1, 3, 3);
-        cpuSpinner.setPrefWidth(80);
-        cpuSpinner.setStyle("-fx-background-color: #0d1f16; -fx-base: #0d1f16; -fx-control-inner-background: #0d1f16; -fx-text-fill: #fdf6e3;");
-
-        cpuRow.getChildren().addAll(cpuLabel, cpuSpinner);
-        
-        VBox nameBox = new VBox(5, nameLabel, nameInput);
-        nameBox.setAlignment(Pos.CENTER_LEFT);
-        
-        inputArea.getChildren().addAll(nameBox, cpuRow);
-
-        // ── Buttons ───────────────────────────────────────────────────────────
-        VBox buttonArea = new VBox(15);
-        buttonArea.setAlignment(Pos.CENTER);
-        VBox.setMargin(buttonArea, new Insets(20, 0, 0, 0));
-
-        Button singlePlayerBtn = makeButton("Start Singleplayer", "#2e6644", "#e8c87a");
+        // ── Main Buttons ──────────────────────────────────────────────────────
+        mainButtons.setAlignment(Pos.CENTER);
+        Button singlePlayerBtn = makeButton("Singleplayer", "#2e6644", "#e8c87a");
         singlePlayerBtn.setOnAction(e -> {
-            String name = nameInput.getText().trim();
-            if (name.isEmpty()) name = "Player 1";
-            onSinglePlayerStart.accept(name, cpuSpinner.getValue());
+            mainButtons.setVisible(false); mainButtons.setManaged(false);
+            spConfigBox.setVisible(true);  spConfigBox.setManaged(true);
         });
 
         Button multiPlayerBtn = makeButton("Multiplayer Lobby", "#1c4d8c", "#e8c87a");
-        multiPlayerBtn.setOnAction(e -> {
-            String name = nameInput.getText().trim();
-            if (name.isEmpty()) name = "Player 1";
-            onMultiPlayerStart.accept(name);
+        multiPlayerBtn.setOnAction(e -> onMultiPlayerStart.accept("")); // Pass empty, Lobby handles name now!
+        mainButtons.getChildren().addAll(singlePlayerBtn, multiPlayerBtn);
+
+        // ── Singleplayer Config (Hidden by default) ───────────────────────────
+        spConfigBox.setAlignment(Pos.CENTER);
+        spConfigBox.setVisible(false); spConfigBox.setManaged(false);
+
+        TextField spNameInput = new TextField();
+        spNameInput.setPromptText("Enter your name");
+        spNameInput.setMaxWidth(260);
+        spNameInput.setStyle("-fx-background-color: #0d1f16; -fx-text-fill: #fdf6e3; -fx-border-color: #2e6644; -fx-padding: 10;");
+
+        Spinner<Integer> cpuSpinner = new Spinner<>(1, 3, 3);
+        cpuSpinner.setStyle("-fx-base: #0d1f16; -fx-control-inner-background: #0d1f16; -fx-text-fill: #fdf6e3;");
+        HBox cpuRow = new HBox(10, new Label("Bots:"), cpuSpinner);
+        cpuRow.setAlignment(Pos.CENTER);
+
+        Button startSpBtn = makeButton("Start Game", "#2e6644", "#e8c87a");
+        startSpBtn.setOnAction(e -> {
+            String n = spNameInput.getText().trim();
+            onSinglePlayerStart.accept(n.isEmpty() ? "Player 1" : n, cpuSpinner.getValue());
         });
+        
+        Button backBtn = makeButton("Back", "#4a2e2e", "#e05555");
+        backBtn.setOnAction(e -> {
+            spConfigBox.setVisible(false); spConfigBox.setManaged(false);
+            mainButtons.setVisible(true);  mainButtons.setManaged(true);
+        });
+        spConfigBox.getChildren().addAll(spNameInput, cpuRow, startSpBtn, backBtn);
 
-        buttonArea.getChildren().addAll(singlePlayerBtn, multiPlayerBtn);
-
-        this.getChildren().addAll(titleBox, inputArea, buttonArea);
+        this.getChildren().addAll(titleBox, mainButtons, spConfigBox);
     }
 
     private Button makeButton(String text, String bg, String fg) {
         Button btn = new Button(text);
         btn.setPrefWidth(260);
-        btn.setStyle(
-            "-fx-font-family: 'DM Sans', sans-serif;" +
-            "-fx-font-size: 16px;" +
-            "-fx-font-weight: bold;" +
-            "-fx-text-fill: " + fg + ";" +
-            "-fx-background-color: " + bg + ";" +
-            "-fx-border-color: " + fg + "44;" +
-            "-fx-border-width: 2;" +
-            "-fx-border-radius: 8;" +
-            "-fx-background-radius: 8;" +
-            "-fx-padding: 12 24 12 24;" +
-            "-fx-cursor: hand;"
-        );
+        btn.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: " + fg + "; -fx-background-color: " + bg + "; -fx-border-color: " + fg + "44; -fx-border-width: 2; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 12 24 12 24; -fx-cursor: hand;");
         btn.setOnMouseEntered(e -> btn.setOpacity(0.85));
         btn.setOnMouseExited(e -> btn.setOpacity(1.0));
         return btn;

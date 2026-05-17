@@ -41,7 +41,7 @@ public class GameServer {
 
     private final int port;
     private final int humanSlots;   // how many network human players to wait for
-    private final int cpuCount;     // CPU bots to fill remaining seats
+    private int cpuCount;     // CPU bots to fill remaining seats
     final Consumer<String> onLog; // UI log callback (runs on any thread)
 
     private ServerSocket serverSocket;
@@ -293,19 +293,21 @@ public class GameServer {
     }
     
     public void broadcastLobby() {
-        if (gameState != null) return; // Don't broadcast lobby if game started
+        if (gameState != null) return; 
+        
+        // THE FIX: Auto-kick a bot if a human joining pushes us over the limit!
+        int maxBots = MAX_PLAYERS - handlers.size();
+        if (cpuCount > maxBots) cpuCount = Math.max(0, maxBots);
         
         StringBuilder sb = new StringBuilder();
         int slot = 0;
         
-        // THE FIX: Loop over active network handlers, not the empty players list!
         for (ClientHandler h : handlers) {
             if (slot > 0) sb.append(",");
             sb.append(slot).append(":").append(h.playerName).append(":Human");
             slot++;
         }
         
-        // Add Virtual Bots (They get pushed to the bottom slots automatically as humans join)
         for (int i = 0; i < cpuCount; i++) {
             if (slot > 0) sb.append(",");
             sb.append(slot).append(":CPU ").append(i + 1).append(":Bot");
@@ -526,4 +528,15 @@ public class GameServer {
     public int getConnectedCount() { return handlers.size(); }
     public int getHumanSlots()     { return humanSlots; }
     public boolean isRunning()     { return running; }
+    
+    public void setCpuCount(int count) {
+        int maxBots = MAX_PLAYERS - handlers.size();
+        int safeCount = Math.min(Math.max(0, count), maxBots);
+        
+        // THE FIX: Only update and broadcast if the number ACTUALLY changed!
+        if (this.cpuCount != safeCount) {
+            this.cpuCount = safeCount;
+            broadcastLobby();
+        }
+    }
 }

@@ -13,192 +13,162 @@ import java.io.IOException;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-public class NetworkLobby extends BorderPane {
+public class NetworkLobby extends StackPane {
 
-    private final String playerName;
     private final BiConsumer<GameServer, GameClient> onHostReady;
     private final Consumer<GameClient> onJoinReady;
     private final Runnable onCancel;
 
-    // Visual Containers
+    // ── UI Stages ─────────────────────────────────────────────────────────────
+    private final VBox configStage = new VBox(30);
+    private final BorderPane waitingRoomStage = new BorderPane();
+
+    // ── Config UI Elements ────────────────────────────────────────────────────
+    private final TextField nameInput = new TextField();
+    private final TextField hostPortInput = new TextField(String.valueOf(GameServer.DEFAULT_PORT));
+    private final TextField joinIpInput = new TextField("localhost");
+    private final TextField joinPortInput = new TextField(String.valueOf(GameServer.DEFAULT_PORT));
+
+    // ── Waiting Room UI Elements ──────────────────────────────────────────────
     private final HBox playerCardContainer = new HBox(20);
     private final VBox controlArea = new VBox(20);
     private final TextArea logArea = new TextArea();
     
-    private final TextField ipInput = new TextField("localhost");
+    private final Spinner<Integer> botSpinner = new Spinner<>(0, 3, 0);
 
     private static final String[] ANIMAL_ICONS = {
-        "bear.png", "cat.png", "cow.png", "dog.png", "dragon.png", 
-        "monkey.png", "pig.png", "rabbit.png", "rat.png"
+        "bear.png", "cat.png", "chicken.png", "dog.png", "gorilla.png", 
+        "koala.png", "meerkat.png", "panda.png", "puffer-fish.png", 
+        "rabbit.png", "sea-lion.png", "shark.png", "sloth.png", "wolf.png"
     };
-    
-    public NetworkLobby(String playerName, BiConsumer<GameServer, GameClient> onHostReady, Consumer<GameClient> onJoinReady, Runnable onCancel) {
-        this.playerName = playerName;
+
+    public NetworkLobby(String ignoredName, BiConsumer<GameServer, GameClient> onHostReady, Consumer<GameClient> onJoinReady, Runnable onCancel) {
         this.onHostReady = onHostReady;
         this.onJoinReady = onJoinReady;
         this.onCancel = onCancel;
 
         setStyle("-fx-background-color: #122a1e;");
-        setPadding(new Insets(30));
+        
+        buildConfigStage();
+        buildWaitingRoomStage();
 
-        // ── Top: Header ───────────────────────────────────────────────────────
-        Label title = new Label("Multiplayer Staging Area");
+        // Start by showing only the Config Stage
+        waitingRoomStage.setVisible(false);
+        this.getChildren().addAll(waitingRoomStage, configStage);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  STAGE 1: CONFIGURATION (Name, Ports, IP)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void buildConfigStage() {
+        configStage.setAlignment(Pos.CENTER);
+        configStage.setMaxWidth(400);
+
+        Label title = new Label("Multiplayer Setup");
+        title.setStyle("-fx-font-family: 'Playfair Display', serif; -fx-font-size: 36px; -fx-font-weight: bold; -fx-text-fill: #e8c87a;");
+
+        // Global Name Input
+        VBox nameBox = new VBox(5, styledLabel("ENTER YOUR NAME:"), nameInput);
+        nameInput.setPromptText("e.g. Oble");
+        nameInput.setStyle("-fx-background-color: #0d1f16; -fx-text-fill: #fdf6e3; -fx-border-color: #2e6644; -fx-padding: 10; -fx-font-size: 16px;");
+
+        // Host Panel
+        VBox hostBox = new VBox(10, styledLabel("HOST A GAME"));
+        hostBox.setStyle("-fx-background-color: #1a3a2a; -fx-padding: 15; -fx-border-color: #2e6644; -fx-border-radius: 8;");
+        HBox hPortRow = new HBox(10, styledLabel("Port:"), hostPortInput);
+        hPortRow.setAlignment(Pos.CENTER_LEFT);
+        Button hostBtn = makeButton("Start Server", "#2e6644", "#e8c87a");
+        hostBtn.setOnAction(e -> startHosting());
+        hostBox.getChildren().addAll(hPortRow, hostBtn);
+
+        // Join Panel
+        VBox joinBox = new VBox(10, styledLabel("JOIN A GAME"));
+        joinBox.setStyle("-fx-background-color: #1a3a2a; -fx-padding: 15; -fx-border-color: #2e6644; -fx-border-radius: 8;");
+        HBox jIpRow = new HBox(10, styledLabel("IP:"), joinIpInput);
+        HBox jPortRow = new HBox(10, styledLabel("Port:"), joinPortInput);
+        jIpRow.setAlignment(Pos.CENTER_LEFT); jPortRow.setAlignment(Pos.CENTER_LEFT);
+        Button joinBtn = makeButton("Connect", "#1c4d8c", "#e8c87a");
+        joinBtn.setOnAction(e -> startJoining());
+        joinBox.getChildren().addAll(jIpRow, jPortRow, joinBtn);
+
+        Button backBtn = makeButton("Back to Menu", "#4a2e2e", "#e05555");
+        backBtn.setOnAction(e -> onCancel.run());
+
+        configStage.getChildren().addAll(title, nameBox, hostBox, joinBox, backBtn);
+    }
+
+    private void startHosting() {
+        int port = parsePort(hostPortInput.getText(), GameServer.DEFAULT_PORT);
+        try {
+            // Start server with 0 bots initially. We add them in the Waiting Room!
+            GameServer srv = new GameServer(port, GameServer.MAX_PLAYERS, 0, this::appendLog);
+            srv.start();
+            GameClient cli = new GameClient("localhost", port, getPlayerName(), null);
+            enterWaitingRoom(cli, srv, true);
+            cli.connect();
+        } catch (IOException e) { System.out.println("Host error: " + e); }
+    }
+
+    private void startJoining() {
+        String ip = joinIpInput.getText().trim();
+        int port = parsePort(joinPortInput.getText(), GameServer.DEFAULT_PORT);
+        try {
+            GameClient cli = new GameClient(ip.isEmpty() ? "localhost" : ip, port, getPlayerName(), null);
+            enterWaitingRoom(cli, null, false);
+            cli.connect();
+        } catch (IOException e) { System.out.println("Join error: " + e); }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  STAGE 2: WAITING ROOM (Avatars, Chat, Bot Spinner)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private void buildWaitingRoomStage() {
+        waitingRoomStage.setPadding(new Insets(30));
+
+        Label title = new Label("Lobby Waiting Room");
         title.setStyle("-fx-font-family: 'Playfair Display', serif; -fx-font-size: 32px; -fx-font-weight: bold; -fx-text-fill: #e8c87a;");
-        
-        Label userLabel = new Label("Playing as: " + playerName);
-        userLabel.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 16px; -fx-text-fill: #8ca898;");
-        
-        VBox header = new VBox(5, title, userLabel);
-        header.setAlignment(Pos.CENTER);
-        setTop(header);
+        VBox header = new VBox(title); header.setAlignment(Pos.CENTER);
+        waitingRoomStage.setTop(header);
         BorderPane.setMargin(header, new Insets(0, 0, 40, 0));
 
-        // ── Center: Visual Player Slots ───────────────────────────────────────
         playerCardContainer.setAlignment(Pos.CENTER);
-        // Add 4 empty placeholders initially
-        for (int i = 0; i < 4; i++) {
-            playerCardContainer.getChildren().add(buildEmptyCard());
-        }
-        setCenter(playerCardContainer);
+        waitingRoomStage.setCenter(playerCardContainer);
 
-        // ── Bottom: Controls & Network Log ────────────────────────────────────
-        buildControlArea();
-        
         logArea.setEditable(false);
-        logArea.setPrefHeight(120);
+        logArea.setPrefHeight(140);
         logArea.setStyle("-fx-control-inner-background: #0d1f16; -fx-font-family: 'DM Mono', monospace; -fx-text-fill: #a8d5b5; -fx-border-color: #2e6644;");
-        appendLog("Welcome to the Lobby, " + playerName + "!");
 
         HBox bottomSection = new HBox(30, controlArea, logArea);
         bottomSection.setAlignment(Pos.CENTER);
         HBox.setHgrow(logArea, Priority.ALWAYS);
-        setBottom(bottomSection);
+        waitingRoomStage.setBottom(bottomSection);
         BorderPane.setMargin(bottomSection, new Insets(40, 0, 0, 0));
     }
 
-    private void buildControlArea() {
-        controlArea.getChildren().clear();
-        controlArea.setAlignment(Pos.TOP_LEFT);
-        controlArea.setPrefWidth(320);
-
-        // --- HOST SETTINGS ---
-        VBox hostBox = new VBox(10);
-        hostBox.setStyle("-fx-background-color: #1a3a2a; -fx-padding: 15; -fx-border-color: #2e6644; -fx-border-radius: 8; -fx-background-radius: 8;");
-        Label hostTitle = styledLabel("HOST A GAME");
-        
-        HBox hostPortRow = new HBox(10, styledLabel("Port:"), createInput(String.valueOf(GameServer.DEFAULT_PORT), 80));
-        hostPortRow.setAlignment(Pos.CENTER_LEFT);
-        TextField hostPortInput = (TextField) hostPortRow.getChildren().get(1);
-
-        HBox botRow = new HBox(10, styledLabel("CPU Bots:"));
-        botRow.setAlignment(Pos.CENTER_LEFT);
-        Spinner<Integer> botSpinner = new Spinner<>(0, 3, 3);
-        botSpinner.setPrefWidth(80);
-        botSpinner.setStyle("-fx-base: #0d1f16; -fx-control-inner-background: #0d1f16; -fx-text-fill: #fdf6e3;");
-        botRow.getChildren().add(botSpinner);
-
-        Button hostBtn = makeButton("Start Server", "#2e6644", "#e8c87a");
-        hostBtn.setOnAction(e -> startHosting(hostPortInput.getText(), botSpinner.getValue()));
-        hostBox.getChildren().addAll(hostTitle, hostPortRow, botRow, hostBtn);
-
-        // --- JOIN SETTINGS ---
-        VBox joinBox = new VBox(10);
-        joinBox.setStyle("-fx-background-color: #1a3a2a; -fx-padding: 15; -fx-border-color: #2e6644; -fx-border-radius: 8; -fx-background-radius: 8;");
-        Label joinTitle = styledLabel("JOIN A GAME");
-        
-        HBox ipRow = new HBox(10, styledLabel("IP:"), createInput("localhost", 120));
-        ipRow.setAlignment(Pos.CENTER_LEFT);
-        TextField ipInput = (TextField) ipRow.getChildren().get(1);
-
-        HBox joinPortRow = new HBox(10, styledLabel("Port:"), createInput(String.valueOf(GameServer.DEFAULT_PORT), 80));
-        joinPortRow.setAlignment(Pos.CENTER_LEFT);
-        TextField joinPortInput = (TextField) joinPortRow.getChildren().get(1);
-
-        Button joinBtn = makeButton("Connect", "#1c4d8c", "#e8c87a");
-        joinBtn.setOnAction(e -> startJoining(ipInput.getText(), joinPortInput.getText()));
-        joinBox.getChildren().addAll(joinTitle, ipRow, joinPortRow, joinBtn);
-
-        // --- BACK BUTTON ---
-        Button backBtn = makeButton("Leave Lobby", "#4a2e2e", "#e05555");
-        backBtn.setOnAction(e -> onCancel.run());
-        VBox.setMargin(backBtn, new Insets(10, 0, 0, 0));
-
-        controlArea.getChildren().addAll(hostBox, joinBox, backBtn);
-    }
-    
-    // --- Helper for the new inputs ---
-    private TextField createInput(String defaultText, int width) {
-        TextField field = new TextField(defaultText);
-        field.setPrefWidth(width);
-        field.setStyle("-fx-background-color: #0d1f16; -fx-text-fill: #fdf6e3; -fx-border-color: #2e6644; -fx-border-radius: 4; -fx-padding: 4 8;");
-        return field;
-    }
-
-    private Label styledLabel(String text) {
-        Label lbl = new Label(text);
-        lbl.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-weight: bold; -fx-text-fill: #8ca898; -fx-font-size: 12px;");
-        lbl.setPrefWidth(65); // Align the inputs cleanly
-        return lbl;
-    }
-
-    private void startHosting(String portStr, int botCount) {
-        int port = parsePort(portStr, GameServer.DEFAULT_PORT);
-        int humanSlots = GameServer.MAX_PLAYERS - botCount; 
-        
-        appendLog("Starting local server on port " + port + " with " + botCount + " bots...");
-        try {
-            GameServer srv = new GameServer(port, humanSlots, botCount, this::appendLog);
-            srv.start();
-
-            GameClient cli = new GameClient("localhost", port, playerName, null);
-            
-            // THE FIX: Set up the UI and the Callbacks FIRST!
-            enterWaitingRoom(cli, srv, true);
-            
-            // THEN open the network connection!
-            cli.connect();
-            
-        } catch (IOException e) {
-            appendLog("[ERROR] Could not start Host: " + e.getMessage());
-        }
-    }
-
-    private void startJoining(String ip, String portStr) {
-        if (ip.isEmpty()) ip = "localhost";
-        int port = parsePort(portStr, GameServer.DEFAULT_PORT);
-        appendLog("Attempting to connect to " + ip + ":" + port + "...");
-        
-        try {
-            GameClient cli = new GameClient(ip, port, playerName, null);
-            
-            // THE FIX: Set up the UI and the Callbacks FIRST!
-            enterWaitingRoom(cli, null, false);
-            
-            // THEN open the network connection!
-            cli.connect();
-            
-        } catch (IOException e) {
-            appendLog("[ERROR] Could not Join: " + e.getMessage());
-        }
-    }
-
-    private int parsePort(String portStr, int defaultPort) {
-        try { return Integer.parseInt(portStr.trim()); } 
-        catch (NumberFormatException e) { return defaultPort; }
-    }
-    
     private void enterWaitingRoom(GameClient cli, GameServer srv, boolean isHost) {
-        // 1. Swap the UI Controls
+        // Swap UI visibility
+        configStage.setVisible(false);
+        waitingRoomStage.setVisible(true);
+
         controlArea.getChildren().clear();
-        controlArea.setAlignment(Pos.CENTER);
+        controlArea.setAlignment(Pos.CENTER_LEFT);
 
         if (isHost) {
+            Label botLbl = styledLabel("Fill Empty Slots with Bots:");
+            // THE FIX: Use the class-level botSpinner, don't create a new one!
+            botSpinner.setStyle("-fx-base: #0d1f16; -fx-control-inner-background: #0d1f16; -fx-text-fill: #fdf6e3;");
+            
+            // Clear old listeners to prevent network spam if they leave and re-host
+            botSpinner.valueProperty().removeListener((obs, oldVal, newVal) -> srv.setCpuCount(newVal));
+            botSpinner.valueProperty().addListener((obs, oldVal, newVal) -> srv.setCpuCount(newVal));
+
             Button startBtn = makeButton("Start Match", "#2e6644", "#e8c87a");
-            startBtn.setOnAction(e -> cli.send(Message.startGame())); // Tells server to begin!
-            controlArea.getChildren().add(startBtn);
+            startBtn.setOnAction(e -> cli.send(Message.startGame()));
+            controlArea.getChildren().addAll(botLbl, botSpinner, startBtn);
         } else {
-            Label waitLbl = new Label("Waiting for Host to start match...");
-            waitLbl.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-text-fill: #8ca898; -fx-font-size: 16px; -fx-font-weight: bold;");
+            Label waitLbl = styledLabel("Waiting for Host to start match...");
             controlArea.getChildren().add(waitLbl);
         }
 
@@ -206,49 +176,70 @@ public class NetworkLobby extends BorderPane {
         leaveBtn.setOnAction(e -> {
             cli.disconnect();
             if (srv != null) srv.stop();
-            onCancel.run();
+            waitingRoomStage.setVisible(false);
+            configStage.setVisible(true); // Go back to config
         });
         controlArea.getChildren().add(leaveBtn);
 
-        // 2. Wire up temporary Network Listeners for the Lobby
+        // Network Listeners
         cli.setCallbacks(new GameClient.Callbacks() {
             @Override public void onWelcome(int slot) {
                 cli.mySlot = slot;
-                cli.send(Message.setName(playerName)); // Send our real name!
+                cli.send(Message.setName(getPlayerName()));
             }
-            @Override public void onLobbyUpdate(String[] slots) {
-                Platform.runLater(() -> updatePlayerCards(slots)); // Draw the Avatars!
-            }
+            @Override public void onLobbyUpdate(String[] slots) { Platform.runLater(() -> updatePlayerCards(slots)); }
             @Override public void onPlayerList(String[] names) {
-                // The Server yelled START! Hand control over to Main.java and swap scenes!
                 Platform.runLater(() -> {
                     if (isHost) onHostReady.accept(srv, cli);
                     else onJoinReady.accept(cli);
                 });
             }
-            @Override public void onLog(String msg) { appendLog(msg); }
+            @Override public void onLog(String msg) { Platform.runLater(() -> logArea.appendText(msg + "\n")); }
             @Override public void onState(String[] entries) {}
             @Override public void onHand(String[] entries) {}
             @Override public void onTrapPrompt(String t, String[] opts) {}
             @Override public void onGameOver(String[] names) {}
             @Override public void onChat(String s, String txt) {}
-            @Override public void onDisconnect(String reason) {
-                Platform.runLater(() -> appendLog("[Disconnect] " + reason));
-            }
+            @Override public void onDisconnect(String reason) { Platform.runLater(() -> logArea.appendText("[Disconnect] " + reason + "\n")); }
         });
     }
 
     private void updatePlayerCards(String[] slots) {
-        playerCardContainer.getChildren().clear();
-        for (int i = 0; i < 4; i++) {
+    	playerCardContainer.getChildren().clear();
+        
+        int humanCount = 0;
+        int botCount = 0;
+        
+        for (int i = 0; i < GameServer.MAX_PLAYERS; i++) {
             if (i < slots.length && !slots[i].isEmpty()) {
-                // Parse "slot:name:type"
                 String[] parts = slots[i].split(":");
                 String name = parts.length > 1 ? parts[1] : "Unknown";
                 String type = parts.length > 2 ? parts[2] : "Human";
+                
+                // THE MISSING PIECE: Actually count them!
+                if (type.equals("Human")) humanCount++;
+                if (type.equals("Bot")) botCount++;
+                
                 playerCardContainer.getChildren().add(buildPlayerCard(name, type, i));
             } else {
                 playerCardContainer.getChildren().add(buildEmptyCard());
+            }
+        }
+        
+        if (botSpinner.getValueFactory() != null) {
+            SpinnerValueFactory.IntegerSpinnerValueFactory factory = 
+                (SpinnerValueFactory.IntegerSpinnerValueFactory) botSpinner.getValueFactory();
+            
+            int newMax = Math.max(0, GameServer.MAX_PLAYERS - humanCount);
+            
+            // 1. Only change the Max if it is actually different
+            if (factory.getMax() != newMax) {
+                factory.setMax(newMax);
+            }
+            
+            // 2. Only change the Value if it doesn't match what the Server says
+            if (botSpinner.getValue() != botCount) {
+                factory.setValue(botCount);
             }
         }
     }
@@ -259,18 +250,14 @@ public class NetworkLobby extends BorderPane {
         card.setPrefSize(180, 240);
         card.setStyle("-fx-background-color: #1a3a2a; -fx-border-color: #2e6644; -fx-border-width: 2; -fx-border-radius: 12; -fx-background-radius: 12;");
 
-        // Use deterministic Avatars!
         String iconFilename = type.equals("Bot") ? "dog.png" : ANIMAL_ICONS[slotId % ANIMAL_ICONS.length];
-        String fullImagePath = "/assets/avatars/" + iconFilename;
-
         javafx.scene.image.ImageView avatar = new javafx.scene.image.ImageView();
-        try { avatar.setImage(new javafx.scene.image.Image(getClass().getResourceAsStream(fullImagePath))); } catch (Exception ignored) {}
+        try { avatar.setImage(new javafx.scene.image.Image(getClass().getResourceAsStream("/assets/avatars/" + iconFilename))); } catch (Exception ignored) {}
         avatar.setFitWidth(64); avatar.setFitHeight(64);
         avatar.setClip(new javafx.scene.shape.Circle(32, 32, 32));
 
         Label nameLbl = new Label(name);
         nameLbl.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-text-fill: #e8c87a; -fx-font-size: 16px; -fx-font-weight: bold;");
-
         Label typeLbl = new Label(type);
         typeLbl.setStyle("-fx-font-family: 'DM Mono', monospace; -fx-text-fill: #8ca898; -fx-font-size: 12px;");
 
@@ -278,48 +265,35 @@ public class NetworkLobby extends BorderPane {
         return card;
     }
 
-    // ── UI Helpers ────────────────────────────────────────────────────────────
-
     private VBox buildEmptyCard() {
         VBox card = new VBox(10);
         card.setAlignment(Pos.CENTER);
         card.setPrefSize(180, 240);
-        card.setStyle(
-            "-fx-background-color: transparent;" +
-            "-fx-border-color: #2e6644;" +
-            "-fx-border-width: 2;" +
-            "-fx-border-radius: 12;" +
-            "-fx-border-style: dashed;"
-        );
-
-        Label lbl = new Label("Empty Slot");
-        lbl.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-text-fill: #8ca898; -fx-font-size: 14px;");
+        card.setStyle("-fx-background-color: transparent; -fx-border-color: #2e6644; -fx-border-width: 2; -fx-border-radius: 12; -fx-border-style: dashed;");
+        Label lbl = styledLabel("Empty Slot");
         card.getChildren().add(lbl);
         return card;
     }
 
-    private void appendLog(String msg) {
-        Platform.runLater(() -> logArea.appendText(msg + "\n"));
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private String getPlayerName() {
+        String n = nameInput.getText().trim();
+        return n.isEmpty() ? "Player" : n;
     }
 
-    private Button makeButton(String text, String bg, String fg) {
-        Button btn = new Button(text);
-        btn.setPrefWidth(220);
-        btn.setStyle(
-            "-fx-font-family: 'DM Sans', sans-serif;" +
-            "-fx-font-size: 14px;" +
-            "-fx-font-weight: bold;" +
-            "-fx-text-fill: " + fg + ";" +
-            "-fx-background-color: " + bg + ";" +
-            "-fx-border-color: " + fg + "44;" +
-            "-fx-border-width: 2;" +
-            "-fx-border-radius: 8;" +
-            "-fx-background-radius: 8;" +
-            "-fx-padding: 10;" +
-            "-fx-cursor: hand;"
-        );
-        btn.setOnMouseEntered(e -> btn.setOpacity(0.85));
-        btn.setOnMouseExited(e -> btn.setOpacity(1.0));
-        return btn;
+    private void appendLog(String msg) { Platform.runLater(() -> logArea.appendText(msg + "\n")); }
+    private int parsePort(String text, int fallback) { try { return Integer.parseInt(text.trim()); } catch (Exception e) { return fallback; } }
+    private Label styledLabel(String text) { 
+        Label l = new Label(text); 
+        l.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #8ca898;"); 
+        l.setMinSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        return l; 
     }
+    private Button makeButton(String text, String bg, String fg) { 
+    	Button btn = new Button(text); 
+    	btn.setPrefWidth(200); 
+    	btn.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: " + fg + "; -fx-background-color: " + bg + "; -fx-border-color: " + fg + "44; -fx-border-width: 2; -fx-border-radius: 8; -fx-padding: 8; -fx-cursor: hand;"); 
+    	return btn; 
+	}
 }
