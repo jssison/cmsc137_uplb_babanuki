@@ -14,16 +14,26 @@ public class GameLoop implements Runnable {
 	private static final long TICK_MS           = 100;
 	private static final long AFK_TIMEOUT_MS    = 15000;
 
-	private long humanReadyTimestamp = 0;
+//	private long humanReadyTimestamp = 0;
 	private final GameState state;
 	private volatile boolean isRunning = true;
 
 	// pending human draw (free-for-all)
-	private volatile Player pendingTargetPlayer = null;
-	private volatile int    pendingCardIndex    = -1;
+//	private volatile Player pendingTargetPlayer = null;
+//	private volatile int    pendingCardIndex    = -1;
 
 	// pending human trap play — set by ui when player hits "play"
-	private volatile Card.Trap pendingHumanTrap = null;
+//	private volatile Card.Trap pendingHumanTrap = null;
+	
+	// Multi-human safe queues!
+	private final java.util.Map<Player, Long> afkTimers = new java.util.concurrent.ConcurrentHashMap<>();
+		private final java.util.Map<Player, PendingDraw> pendingDraws = new java.util.concurrent.ConcurrentHashMap<>();
+		private final java.util.Map<Player, Card.Trap> pendingTraps = new java.util.concurrent.ConcurrentHashMap<>();
+
+	private static class PendingDraw {
+		final Player target; final int index;
+		PendingDraw(Player t, int i) { this.target = t; this.index = i; }
+	}
 
 	// latch held while a trap dialog is open — freezes the whole loop
 	private volatile CountDownLatch trapPauseLatch = null;
@@ -93,44 +103,43 @@ public class GameLoop implements Runnable {
 
 	// human tick — waits for click input or afk timeout
 	private void processHumanTick(Player human) {
-		if (humanReadyTimestamp == 0) humanReadyTimestamp = System.currentTimeMillis();
+		afkTimers.putIfAbsent(human, System.currentTimeMillis());
 
-		if (pendingTargetPlayer == null || pendingCardIndex == -1) {
-			if (System.currentTimeMillis() - humanReadyTimestamp > AFK_TIMEOUT_MS) {
+		PendingDraw draw = pendingDraws.remove(human);
+
+		if (draw == null) {
+			if (System.currentTimeMillis() - afkTimers.get(human) > AFK_TIMEOUT_MS) {
 				state.log(human.getName() + " took too long! auto-drawing...");
 				Player target = human.getNextDrawTarget();
 				if (target != null && target.handSize() > 0) {
 					int idx = (int)(Math.random() * target.handSize());
 					animatedPerformDraw(human, target, idx);
 				}
-				humanReadyTimestamp = 0;
+				afkTimers.remove(human);
 				human.startCooldown(HUMAN_COOLDOWN_MS);
 			}
 			return;
 		}
 
-		Player target = pendingTargetPlayer;
-		int index     = pendingCardIndex;
-		pendingTargetPlayer = null;
-		pendingCardIndex    = -1;
+		Player target = draw.target;
+		int index     = draw.index;
 
 		if (target.handSize() == 0) { state.log("no valid target to draw from"); return; }
 		if (index < 0 || index >= target.handSize()) index = 0;
 
 		performDraw(human, target, index);
-		humanReadyTimestamp = 0;
+		afkTimers.remove(human);
 		human.startCooldown(HUMAN_COOLDOWN_MS);
 	}
 
 	// called by ui when player clicks a card
-	public void submitHumanDraw(Player target, int cardIndex) {
-		this.pendingTargetPlayer = target;
-		this.pendingCardIndex    = cardIndex;
+	// Now requires knowing WHO is submitting the draw
+	public void submitHumanDraw(Player drawer, Player target, int cardIndex) {
+		pendingDraws.put(drawer, new PendingDraw(target, cardIndex));
 	}
 
-	// called by ui when player hits "play" on a trap pair in their hand
-	public void submitHumanTrapPlay(Card.Trap trap) {
-		this.pendingHumanTrap = trap;
+	public void submitHumanTrapPlay(Player human, Card.Trap trap) {
+		pendingTraps.put(human, trap);
 	}
 
 	// ai tick — draws then immediately plays any trap pairs
@@ -225,10 +234,11 @@ public class GameLoop implements Runnable {
 
 	// handle a human-submitted trap play
 	// called from GameView's refresh loop when pendingHumanTrap is set
+
+
 	public void processHumanTrapPlay(Player human) {
-		Card.Trap trap = pendingHumanTrap;
+		Card.Trap trap = pendingTraps.remove(human);
 		if (trap == null) return;
-		pendingHumanTrap = null;
 
 		List<Card> discarded = human.removeTrapPair(trap);
 		if (discarded.isEmpty()) return;
@@ -242,9 +252,7 @@ public class GameLoop implements Runnable {
 			.toList();
 
 		if (!targets.isEmpty()) {
-			// pause the loop while dialog is open
 			CountDownLatch latch = pauseForTrapDialog();
-			// wrap chooser to release latch after choice
 			TrapCardHandler.TargetChooser pausingChooser = (prompt, opts, onChosen) ->
 				targetChooser.choose(prompt, opts, chosen -> {
 					onChosen.accept(chosen);

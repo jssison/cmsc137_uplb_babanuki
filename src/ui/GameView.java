@@ -328,17 +328,16 @@ public class GameView extends StackPane {
 				view.setOnCardClicked(cardIndex -> {
 					if (player.canDraw()) {
 						animEngine.animateSteal(view.getCardNode(cardIndex), humanPlate, () -> {
-							gameLoop.submitHumanDraw(view.getPlayer(), cardIndex);
-						});
+                            gameLoop.submitHumanDraw(player, view.getPlayer(), cardIndex); // Added 'player'
+                        });
 					}
 				});
 			} else {
 				// wire trap play buttons on the human's own hand
 				view.setOnTrapPlayed(trap -> {
-					// submit sets the pending trap, then process reads and executes it
-					gameLoop.submitHumanTrapPlay(trap);
-					gameLoop.processHumanTrapPlay(player);
-				});
+                    gameLoop.submitHumanTrapPlay(player, trap); // Added 'player'
+                    gameLoop.processHumanTrapPlay(player);
+                });
 			}
 		}
 	}

@@ -265,7 +265,7 @@ public class GameServer {
         try { trap = model.Card.Trap.valueOf(trapName); }
         catch (IllegalArgumentException e) { sender.send(Message.error("unknown trap: " + trapName)); return; }
         Player human = players.get(sender.slot);
-        gameLoop.submitHumanTrapPlay(trap);
+        gameLoop.submitHumanTrapPlay(human, trap);
         gameLoop.processHumanTrapPlay(human);
     }
 
@@ -286,7 +286,7 @@ public class GameServer {
             Player drawer = players.get(sender.slot);
 
             // Let the GameLoop process it
-            gameLoop.submitHumanDraw(target, cardIndex);
+            gameLoop.submitHumanDraw(drawer, target, cardIndex);
             onLog.accept("[Server] " + drawer.getName()
                     + " drew card " + cardIndex + " from " + target.getName());
         } catch (NumberFormatException e) {

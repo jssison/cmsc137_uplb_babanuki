@@ -574,6 +574,10 @@ public class MultiplayerGameView extends StackPane {
         private String[] handEntries = new String[0];
         // for opponent slots: just count
         private int cardCount = 0;
+        
+        private String[] lastHandEntries = null;
+        private int      lastCardCount   = -1;
+        private boolean  lastTargetState = false;
 
         private Consumer<Integer>    onCardClicked;
         private Consumer<String>     onTrapPlayed; // trapName string
@@ -602,6 +606,16 @@ public class MultiplayerGameView extends StackPane {
         void setCardCount(int count)          { this.cardCount   = count; }
 
         void refresh(boolean isTarget) {
+        	if (isTarget == lastTargetState && 
+                cardCount == lastCardCount && 
+                Arrays.equals(handEntries, lastHandEntries)) {
+                return; 
+            }
+        	
+        	lastTargetState = isTarget;
+            lastCardCount   = cardCount;
+            lastHandEntries = handEntries != null ? handEntries.clone() : new String[0];
+            
             cardRow.getChildren().clear();
 
             if (hideCards) {
