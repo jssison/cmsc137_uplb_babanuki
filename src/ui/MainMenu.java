@@ -8,111 +8,112 @@ import javafx.scene.control.Spinner;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class MainMenu extends VBox {
 
-	/**
-	 * @param onSinglePlayerStart  called with (playerName, cpuCount)
-	 * @param onMultiPlayerStart   called with (playerName) — goes to NetworkLobby
-	 */
-	public MainMenu(BiConsumer<String, Integer> onSinglePlayerStart, Consumer<String> onMultiPlayerStart) {
-		this.setAlignment(Pos.CENTER);
-		this.setSpacing(25);
-		this.setStyle("-fx-background-color: #122a1e;");
+    public MainMenu(BiConsumer<String, Integer> onSinglePlayerStart, Consumer<String> onMultiPlayerStart) {
+        this.setAlignment(Pos.CENTER);
+        this.setSpacing(30);
+        this.setStyle("-fx-background-color: #122a1e;");
 
-		// Title
-		Label title = new Label("UPLB Babanuki");
-		title.setStyle(
-			"-fx-font-family: 'Playfair Display', serif;" +
-			"-fx-font-size: 54px;" +
-			"-fx-font-weight: bold;" +
-			"-fx-text-fill: #e8c87a;" +
-			"-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.6), 10, 0, 0, 5);"
-		);
+        // ── Title ─────────────────────────────────────────────────────────────
+        Label title = new Label("UPLB Babanuki");
+        title.setStyle(
+            "-fx-font-family: 'Playfair Display', serif;" +
+            "-fx-font-size: 64px;" +
+            "-fx-font-weight: bold;" +
+            "-fx-text-fill: #e8c87a;" +
+            "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.8), 15, 0, 0, 8);"
+        );
 
-		// Name input
-		VBox inputArea = new VBox(10);
-		inputArea.setAlignment(Pos.CENTER);
-		inputArea.setMaxWidth(300);
+        Label subtitle = new Label("The Classic Card Game");
+        subtitle.setStyle(
+            "-fx-font-family: 'DM Sans', sans-serif;" +
+            "-fx-font-size: 18px;" +
+            "-fx-text-fill: #8ca898;" +
+            "-fx-font-style: italic;"
+        );
+        VBox titleBox = new VBox(5, title, subtitle);
+        titleBox.setAlignment(Pos.CENTER);
+        VBox.setMargin(titleBox, new Insets(0, 0, 30, 0));
 
-		Label nameLabel = new Label("ENTER YOUR NAME:");
-		nameLabel.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #8ca898;");
+        // ── Inputs ────────────────────────────────────────────────────────────
+        VBox inputArea = new VBox(15);
+        inputArea.setAlignment(Pos.CENTER);
+        inputArea.setMaxWidth(300);
 
-		TextField nameInput = new TextField();
-		nameInput.setPromptText("E.g., Oble");
-		nameInput.setStyle(
-			"-fx-font-family: 'DM Sans', sans-serif;" +
-			"-fx-font-size: 16px;" +
-			"-fx-background-color: #1a3a2a;" +
-			"-fx-text-fill: #fdf6e3;" +
-			"-fx-border-color: #2e6644;" +
-			"-fx-border-width: 2;" +
-			"-fx-border-radius: 6;" +
-			"-fx-background-radius: 6;" +
-			"-fx-padding: 10;"
-		);
+        Label nameLabel = new Label("ENTER YOUR NAME:");
+        nameLabel.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-weight: bold; -fx-text-fill: #8ca898; -fx-font-size: 12px;");
+        
+        TextField nameInput = new TextField();
+        nameInput.setPromptText("e.g. Oble");
+        nameInput.setStyle(
+            "-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 16px; " +
+            "-fx-background-color: #0d1f16; -fx-text-fill: #fdf6e3; " +
+            "-fx-border-color: #2e6644; -fx-border-radius: 6; -fx-background-radius: 6; -fx-padding: 10;"
+        );
 
-		inputArea.getChildren().addAll(nameLabel, nameInput);
+        HBox cpuRow = new HBox(15);
+        cpuRow.setAlignment(Pos.CENTER);
+        Label cpuLabel = new Label("CPU BOTS:");
+        cpuLabel.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-weight: bold; -fx-text-fill: #8ca898; -fx-font-size: 12px;");
+        
+        Spinner<Integer> cpuSpinner = new Spinner<>(1, 3, 3);
+        cpuSpinner.setPrefWidth(80);
+        cpuSpinner.setStyle("-fx-background-color: #0d1f16; -fx-base: #0d1f16; -fx-control-inner-background: #0d1f16; -fx-text-fill: #fdf6e3;");
 
-		// CPU count picker
-		HBox cpuRow = new HBox(12);
-		cpuRow.setAlignment(Pos.CENTER);
-		cpuRow.setMaxWidth(300);
+        cpuRow.getChildren().addAll(cpuLabel, cpuSpinner);
+        
+        VBox nameBox = new VBox(5, nameLabel, nameInput);
+        nameBox.setAlignment(Pos.CENTER_LEFT);
+        
+        inputArea.getChildren().addAll(nameBox, cpuRow);
 
-		Label cpuLabel = new Label("CPU opponents:");
-		cpuLabel.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #8ca898;");
+        // ── Buttons ───────────────────────────────────────────────────────────
+        VBox buttonArea = new VBox(15);
+        buttonArea.setAlignment(Pos.CENTER);
+        VBox.setMargin(buttonArea, new Insets(20, 0, 0, 0));
 
-		Spinner<Integer> cpuSpinner = new Spinner<>(1, 3, 3);
-		cpuSpinner.setEditable(false);
-		cpuSpinner.setPrefWidth(80);
-		cpuSpinner.setStyle("-fx-background-color: #1a3a2a; -fx-border-color: #2e6644; -fx-border-radius: 6;");
+        Button singlePlayerBtn = makeButton("Start Singleplayer", "#2e6644", "#e8c87a");
+        singlePlayerBtn.setOnAction(e -> {
+            String name = nameInput.getText().trim();
+            if (name.isEmpty()) name = "Player 1";
+            onSinglePlayerStart.accept(name, cpuSpinner.getValue());
+        });
 
-		cpuRow.getChildren().addAll(cpuLabel, cpuSpinner);
+        Button multiPlayerBtn = makeButton("Multiplayer Lobby", "#1c4d8c", "#e8c87a");
+        multiPlayerBtn.setOnAction(e -> {
+            String name = nameInput.getText().trim();
+            if (name.isEmpty()) name = "Player 1";
+            onMultiPlayerStart.accept(name);
+        });
 
-		// Buttons
-		VBox buttonArea = new VBox(15);
-		buttonArea.setAlignment(Pos.CENTER);
+        buttonArea.getChildren().addAll(singlePlayerBtn, multiPlayerBtn);
 
-		Button singlePlayerBtn = makeButton("Start Singleplayer", "#2e6644", "#e8c87a");
-		singlePlayerBtn.setPrefWidth(250);
-		singlePlayerBtn.setOnAction(e -> {
-			String name = nameInput.getText().trim();
-			if (name.isEmpty()) name = "Player 1";
-			onSinglePlayerStart.accept(name, cpuSpinner.getValue());
-		});
+        this.getChildren().addAll(titleBox, inputArea, buttonArea);
+    }
 
-		Button multiPlayerBtn = makeButton("Multiplayer (LAN)", "#2e6644", "#e8c87a");
-		multiPlayerBtn.setPrefWidth(250);
-		multiPlayerBtn.setOnAction(e -> {
-			String name = nameInput.getText().trim();
-			if (name.isEmpty()) name = "Player 1";
-			onMultiPlayerStart.accept(name);
-		});
-
-		buttonArea.getChildren().addAll(singlePlayerBtn, multiPlayerBtn);
-
-		this.getChildren().addAll(title, inputArea, cpuRow, buttonArea);
-	}
-
-	private Button makeButton(String text, String bg, String fg) {
-		Button btn = new Button(text);
-		btn.setStyle(
-			"-fx-font-family: 'DM Sans', sans-serif;" +
-			"-fx-font-size: 16px;" +
-			"-fx-font-weight: bold;" +
-			"-fx-text-fill: " + fg + ";" +
-			"-fx-background-color: " + bg + ";" +
-			"-fx-border-color: " + fg + "44;" +
-			"-fx-border-width: 1;" +
-			"-fx-border-radius: 6;" +
-			"-fx-background-radius: 6;" +
-			"-fx-padding: 12 24 12 24;" +
-			"-fx-cursor: hand;"
-		);
-		btn.setOnMouseEntered(e -> btn.setOpacity(0.8));
-		btn.setOnMouseExited(e -> btn.setOpacity(1.0));
-		return btn;
-	}
+    private Button makeButton(String text, String bg, String fg) {
+        Button btn = new Button(text);
+        btn.setPrefWidth(260);
+        btn.setStyle(
+            "-fx-font-family: 'DM Sans', sans-serif;" +
+            "-fx-font-size: 16px;" +
+            "-fx-font-weight: bold;" +
+            "-fx-text-fill: " + fg + ";" +
+            "-fx-background-color: " + bg + ";" +
+            "-fx-border-color: " + fg + "44;" +
+            "-fx-border-width: 2;" +
+            "-fx-border-radius: 8;" +
+            "-fx-background-radius: 8;" +
+            "-fx-padding: 12 24 12 24;" +
+            "-fx-cursor: hand;"
+        );
+        btn.setOnMouseEntered(e -> btn.setOpacity(0.85));
+        btn.setOnMouseExited(e -> btn.setOpacity(1.0));
+        return btn;
+    }
 }

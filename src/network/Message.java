@@ -68,6 +68,10 @@ public class Message {
 
     /** server → all: animate discards; payload is slot|cardsCsv */
     public static final String ANIM_DISCARD = "ANIM_DISCARD";
+    
+    public static final String SET_NAME     = "SET_NAME";
+    public static final String LOBBY_STATE  = "LOBBY_STATE";
+    public static final String START_GAME   = "START_GAME";
 
     // ── Fields ───────────────────────────────────────────────────────────────
 
@@ -164,6 +168,10 @@ public class Message {
     public static String animDiscard(int slot, String cardsCsv) {
         return ANIM_DISCARD + "|" + slot + "|" + cardsCsv;
     }
+    
+    public static String setName(String name) { return SET_NAME + "|" + name; }
+    public static String lobbyState(String stateCsv) { return LOBBY_STATE + "|" + stateCsv; }
+    public static String startGame() { return START_GAME; }
 
     // ── Convenience getters ───────────────────────────────────────────────────
 

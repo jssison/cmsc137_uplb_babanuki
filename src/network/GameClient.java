@@ -68,6 +68,7 @@ public class GameClient {
         
         default void onAnimSteal(int stealerSlot, int targetSlot, int cardIndex) {}
         default void onAnimDiscard(int slot, String[] cards) {}
+        default void onLobbyUpdate(String[] slots) {}
     }
 
     // ── Fields ────────────────────────────────────────────────────────────────
@@ -150,14 +151,14 @@ public class GameClient {
     public void sendChat(String text) {
         send(Message.chat(playerName, text));
     }
+    
+    public void send(String message) {
+    	if (out != null && connected) {
+    		out.println(message);
+    	}
+    }
 
     // ── Internal ──────────────────────────────────────────────────────────────
-
-    private void send(String message) {
-        if (out != null && connected) {
-            out.println(message);
-        }
-    }
 
     private void readLoop() {
         try {
@@ -170,59 +171,51 @@ public class GameClient {
 
                 switch (msg.type) {
 
-                    case Message.WELCOME -> {
-                        mySlot = Integer.parseInt(msg.part(0));
-                        callbacks.onWelcome(mySlot);
-
-                        // After receiving WELCOME, send our name to the server
-                        if (!nameSet) {
-                            out.println(playerName);
-                            nameSet = true;
-                        }
-                    }
-
-                    case Message.PLAYER_LIST -> {
-                        String[] names = msg.part(0).split(",", -1);
-                        cachedPlayerList = names; // Save to cache!
-                        callbacks.onPlayerList(names);
-                    }
-
-                    case Message.STATE -> {
-                        String[] entries = msg.part(0).split(",", -1);
-                        cachedState = entries; // Save to cache!
-                        callbacks.onState(entries);
-                    }
-
-                    case Message.LOG -> {
-                        callbacks.onLog(msg.part(0));
-                    }
-
-                    case Message.TRAP_PROMPT -> {
-                        String   trapName    = msg.part(0);
-                        String[] targetNames = msg.part(1).split(",", -1);
-                        callbacks.onTrapPrompt(trapName, targetNames);
-                    }
-
-                    case Message.GAME_OVER -> {
-                        String[] names = msg.part(0).split(",", -1);
-                        callbacks.onGameOver(names);
-                    }
-
-                    case Message.CHAT -> {
-                        callbacks.onChat(msg.part(0), msg.part(1));
-                    }
-
-                    case Message.HAND -> {
+	                case Message.WELCOME -> {
+	                    int slot = Integer.parseInt(msg.part(0));
+	                    this.mySlot = slot;
+	                    if (callbacks != null) callbacks.onWelcome(slot); 
+	                }
+	
+	                case Message.PLAYER_LIST -> {
+	                    String namesCsv = msg.part(0);
+	                    String[] names = namesCsv.isEmpty() ? new String[0] : namesCsv.split(",", -1);
+	                    cachedPlayerList = names;
+	                    if (callbacks != null) callbacks.onPlayerList(names); 
+	                }
+	
+	                case Message.STATE -> {
+	                    String payload = msg.part(0);
+	                    String[] entries = payload.isEmpty() ? new String[0] : payload.split(",", -1);
+	                    cachedState = entries;
+	                    if (callbacks != null) callbacks.onState(entries); 
+	                }
+	
+	                case Message.LOG -> {
+	                    if (callbacks != null) callbacks.onLog(msg.part(0)); 
+	                }
+	
+	                case Message.TRAP_PROMPT -> {
+	                    String trapName = msg.part(0);
+	                    String[] opts = msg.part(1).split(",", -1);
+	                    if (callbacks != null) callbacks.onTrapPrompt(trapName, opts);
+	                }
+	
+	                case Message.GAME_OVER -> {
+	                    String[] lb = msg.part(0).split(",", -1);
+	                    if (callbacks != null) callbacks.onGameOver(lb); 
+	                }
+	                
+	                case Message.HAND -> {
 	                    String cardsCsv = msg.part(1);
 	                    String[] entries = cardsCsv.isEmpty() ? new String[0] : cardsCsv.split(",", -1);
-	                    cachedHand = entries; // Save to cache!
-	                    callbacks.onHand(entries);
+	                    cachedHand = entries; 
+	                    if (callbacks != null) callbacks.onHand(entries); 
 	                }
-
-                    
-                    case Message.ERROR -> {
-                        callbacks.onLog("[ERROR] " + msg.part(0));
-                    }
+	
+	                case Message.ERROR -> {
+	                    if (callbacks != null) callbacks.onLog("[ERROR] " + msg.part(0)); 
+	                }
                     
                     case Message.ANIM_STEAL -> {
                         int stealer = Integer.parseInt(msg.part(0));
@@ -235,6 +228,12 @@ public class GameClient {
                         int slot = Integer.parseInt(msg.part(0));
                         String[] cards = msg.part(1).split(",", -1);
                         callbacks.onAnimDiscard(slot, cards);
+                    }
+                    
+                    case Message.LOBBY_STATE -> {
+                        String payload = msg.part(0);
+                        String[] slots = payload.isEmpty() ? new String[0] : payload.split(",", -1);
+                        if (callbacks != null) callbacks.onLobbyUpdate(slots);
                     }
                     // ----------------------------------------------
 

@@ -106,12 +106,22 @@ public class GameServer {
 
     /** Deal cards and start the GameLoop. Call after all humans have connected. */
     public void startGame() {
-        if (players.isEmpty()) buildPlayers();
+    	players.clear(); // Safety clear
+    	
+    	for (ClientHandler h : handlers) {
+            players.add(new Player(h.playerName, true));
+        }
+    	
+    	for (int i = 0; i < cpuCount; i++) {
+            players.add(new Player("CPU " + (i + 1), false));
+        }
 
-        Deck deck = new Deck();
+    	Deck deck = new Deck();
         deck.shuffle();
         deck.dealTo(players);
-
+        
+        gameState = new GameState(players);
+        
         // 1. Wire up listeners FIRST so the initial logs/states broadcast properly
         gameState.addLogListener(msg -> broadcast(Message.log(msg)));
         gameState.addStateChangeListener(this::broadcastState);
@@ -210,13 +220,8 @@ public class GameServer {
 
                 // If all human slots filled, wait 800ms, THEN auto-start
                 if (handlers.size() == humanSlots) {
-                    onLog.accept("[Server] All players connected — starting game in a moment...");
-                    
-                    // Spawn a thread to wait 800ms for all players
-                    new Thread(() -> {
-                        try { Thread.sleep(800); } catch (InterruptedException ignored) {}
-                        startGame();
-                    }).start();
+                    onLog.accept("[Server] All human slots filled. Waiting for Host to start...");
+                    broadcastLobby(); // THE FIX: Just update the Waiting Room, do NOT start the game!
                 }
             } catch (IOException e) {
                 if (running) onLog.accept("[Server] Accept error: " + e.getMessage());
@@ -268,12 +273,46 @@ public class GameServer {
 
     void onMessage(ClientHandler sender, Message msg) {
         switch (msg.type) {
+	        case Message.SET_NAME -> {
+	            if (sender.slot < players.size()) {
+	                players.get(sender.slot).setName(msg.part(0));
+	                broadcastLobby(); // Update everyone's screen with the new name!
+	            }
+	        }
+	        case Message.START_GAME -> {
+	            if (sender.slot == 0 && gameState == null) { // Only the Host (Slot 0) can start it
+	                startGame(); 
+	            }
+	        }
             case Message.DRAW      -> handleDraw(sender, msg);
             case Message.TRAP_CHOICE -> handleTrapChoice(sender, msg);
             case Message.TRAP_PLAY -> handleTrapPlay(sender, msg);
             case Message.CHAT      -> broadcast(Message.chat(sender.playerName, msg.part(0)));
             default -> sender.send(Message.error("Unknown message type: " + msg.type));
         }
+    }
+    
+    public void broadcastLobby() {
+        if (gameState != null) return; // Don't broadcast lobby if game started
+        
+        StringBuilder sb = new StringBuilder();
+        int slot = 0;
+        
+        // THE FIX: Loop over active network handlers, not the empty players list!
+        for (ClientHandler h : handlers) {
+            if (slot > 0) sb.append(",");
+            sb.append(slot).append(":").append(h.playerName).append(":Human");
+            slot++;
+        }
+        
+        // Add Virtual Bots (They get pushed to the bottom slots automatically as humans join)
+        for (int i = 0; i < cpuCount; i++) {
+            if (slot > 0) sb.append(",");
+            sb.append(slot).append(":CPU ").append(i + 1).append(":Bot");
+            slot++;
+        }
+        
+        broadcast(Message.lobbyState(sb.toString()));
     }
 
     private void handleTrapPlay(ClientHandler sender, Message msg) {

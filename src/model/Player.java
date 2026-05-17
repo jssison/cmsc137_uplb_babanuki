@@ -7,7 +7,7 @@ import java.util.List;
 public class Player {
 	public enum DrawState { READY, COOLDOWN, SKIPPED }
 
-	private final String name;
+	private String name;
 	private boolean isHuman;
 	private final List<Card> hand = new ArrayList<>();
 
@@ -204,6 +204,7 @@ public class Player {
 	
 	// setter
 	public void setIsHuman(boolean h){ this.isHuman = h; }
+	public void setName(String name) { this.name = name; }
 
 	@Override public String toString() { return name; }
 }

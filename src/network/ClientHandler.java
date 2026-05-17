@@ -43,11 +43,17 @@ class ClientHandler implements Runnable {
             // Then wait for client to send their name as plain text
             String nameLine = in.readLine();
             if (nameLine != null && !nameLine.isBlank()) {
-                playerName = nameLine.trim();
+                // THE FIX: Safely parse the SET_NAME command!
+                if (nameLine.startsWith("SET_NAME|")) {
+                    playerName = nameLine.substring(9).trim(); // strips out "SET_NAME|"
+                } else {
+                    playerName = nameLine.trim(); // fallback for raw text
+                }
             }
 
             server.onLog.accept("[Server] Slot " + slot
                     + " identified as \"" + playerName + "\"");
+            server.broadcastLobby();
 
             // Notify other clients that someone joined
             server.broadcast(Message.log(playerName + " joined the game."));
