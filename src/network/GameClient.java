@@ -52,7 +52,7 @@ public class GameClient {
          * @param trapName    e.g. "SINGKO"
          * @param targetNames comma-separated eligible names
          */
-        void onTrapPrompt(String trapName, String[] targetNames);
+        void onTrapPrompt(String trapName, String[] targetSlots);
 
         /** Game finished. orderedNames[0] is 1st place, last is the Babanuki loser. */
         void onGameOver(String[] orderedNames);

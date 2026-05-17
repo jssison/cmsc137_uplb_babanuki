@@ -350,14 +350,19 @@ public class MultiplayerGameView extends StackPane {
         );
         dialog.getChildren().add(prompt);
 
-        for (String name : targetNames) {
-            int targetSlot = findSlotByName(name);
+        // iterate over slot IDs not names
+        for (String slotStr : targetNames) { 
+            int targetSlot = parseInt(slotStr);
+
+            String name = (targetSlot >= 0 && targetSlot < playerNames.length) ? playerNames[targetSlot] : "Unknown";
             int cards = targetSlot < handSizes.length ? handSizes[targetSlot] : 0;
+            
             Button btn = makeButton(name + " (" + cards + " cards)", "#2e5a44", "#e8d8a0");
             btn.setPrefWidth(280);
+            
             btn.setOnAction(e -> {
                 hideOverlay();
-                client.sendTrapChoice(targetSlot);
+                client.sendTrapChoice(targetSlot); 
             });
             dialog.getChildren().add(btn);
         }

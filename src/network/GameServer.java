@@ -378,12 +378,12 @@ public class GameServer {
             }
 
             // Build target name list for the client
-            StringBuilder targetNames = new StringBuilder();
+            StringBuilder targetSlots = new StringBuilder();
             for (int i = 0; i < targets.size(); i++) {
-                if (i > 0) targetNames.append(",");
-                targetNames.append(targets.get(i).getName());
+                if (i > 0) targetSlots.append(",");
+                // Ask the master players list for this exact target's slot ID!
+                targetSlots.append(players.indexOf(targets.get(i)));
             }
-
             // Extract trap name from prompt (e.g. "SINGKO! Choose...")
             String trapName = prompt.split("!")[0].trim();
 
@@ -392,7 +392,7 @@ public class GameServer {
             pendingTrapCallback = onChosen;
             pendingTrapTargets  = new ArrayList<>(targets);
 
-            humanClient.send(Message.trapPrompt(trapName, targetNames.toString()));
+            humanClient.send(Message.trapPrompt(trapName, targetSlots.toString()));
             onLog.accept("[Server] Trap prompt sent to " + humanClient.playerName);
         };
     }
