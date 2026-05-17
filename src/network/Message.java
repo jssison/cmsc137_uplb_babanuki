@@ -4,18 +4,20 @@ package network;
  * Represents a message sent between the GameServer and GameClients.
  *
  * FORMAT (plain text, newline-terminated):
- *   TYPE|payload
+ * TYPE|payload
  *
  * Examples:
- *   WELCOME|0                        -> server assigns you slot 0
- *   PLAYER_LIST|Alice,Bob,CPU 1      -> ordered list of all player names
- *   STATE|Alice:12:READY,Bob:8:COOLDOWN,CPU 1:5:SKIPPED  -> full state snapshot
- *   DRAW|1|2                         -> client requests: draw card index 2 from player slot 1
- *   TRAP_CHOICE|0                    -> client chooses player slot 0 as trap target
- *   TRAP_PROMPT|SINGKO|Bob,CPU 1     -> server asks human to pick a trap target
- *   GAME_OVER|Alice,Bob,CPU 1        -> ordered leaderboard (winner first, loser last)
- *   CHAT|Alice|hello!                -> optional chat message
- *   ERROR|message                    -> server-side error info
+ * WELCOME|0                        -> server assigns you slot 0
+ * PLAYER_LIST|Alice,Bob,CPU 1      -> ordered list of all player names
+ * STATE|Alice:12:READY,Bob:8:COOLDOWN,CPU 1:5:SKIPPED  -> full state snapshot
+ * DRAW|1|2                         -> client requests: draw card index 2 from player slot 1
+ * TRAP_CHOICE|0                    -> client chooses player slot 0 as trap target
+ * TRAP_PROMPT|SINGKO|Bob,CPU 1     -> server asks human to pick a trap target
+ * GAME_OVER|Alice,Bob,CPU 1        -> ordered leaderboard (winner first, loser last)
+ * CHAT|Alice|hello!                -> optional chat message
+ * ERROR|message                    -> server-side error info
+ * ANIM_STEAL|0|1|2                 -> server tells all: slot 0 steals card 2 from slot 1
+ * ANIM_DISCARD|0|Q♥,5♦             -> server tells all: slot 0 discarded these cards
  */
 public class Message {
 
@@ -58,6 +60,14 @@ public class Message {
 
     /** client → server: human plays a trap pair; payload is trap name e.g. "SINGKO" */
     public static final String TRAP_PLAY    = "TRAP_PLAY";
+
+    // ── Animation events ─────────────────────────────────────────────────────
+
+    /** server → all: animate a steal; payload is stealerSlot|targetSlot|cardIndex */
+    public static final String ANIM_STEAL   = "ANIM_STEAL";
+
+    /** server → all: animate discards; payload is slot|cardsCsv */
+    public static final String ANIM_DISCARD = "ANIM_DISCARD";
 
     // ── Fields ───────────────────────────────────────────────────────────────
 
@@ -145,6 +155,14 @@ public class Message {
     // hand|slot|card1,card2,...
     public static String hand(int slot, String cardsCsv) {
         return HAND + "|" + slot + "|" + cardsCsv;
+    }
+
+    public static String animSteal(int stealerSlot, int targetSlot, int cardIndex) {
+        return ANIM_STEAL + "|" + stealerSlot + "|" + targetSlot + "|" + cardIndex;
+    }
+
+    public static String animDiscard(int slot, String cardsCsv) {
+        return ANIM_DISCARD + "|" + slot + "|" + cardsCsv;
     }
 
     // ── Convenience getters ───────────────────────────────────────────────────

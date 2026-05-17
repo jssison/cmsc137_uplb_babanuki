@@ -112,34 +112,52 @@ public class GameServer {
         deck.shuffle();
         deck.dealTo(players);
 
-        // Discard initial pairs
-        for (Player p : players) {
-            List<Card> discarded = p.discardNonTrapPairs();
-            if (!discarded.isEmpty()) {
-                gameState.log(p.getName() + " discarded " + (discarded.size() / 2) + " pair(s) at start");
-            }
-        }
-
+        // 1. Wire up listeners FIRST so the initial logs/states broadcast properly
         gameState.addLogListener(msg -> broadcast(Message.log(msg)));
         gameState.addStateChangeListener(this::broadcastState);
 
-        // Broadcast initial player list
+        // 2. Broadcast the Player List and the FULL starting hands before any discards
         String[] names = players.stream().map(Player::getName).toArray(String[]::new);
         broadcast(Message.playerList(names));
         broadcastState();
 
-        // Wire animation callbacks (server-side: no real animations, just countdowns)
-        GameLoop.AnimationCallback animCb = buildAnimationCallback();
+        // 3. Spawn a setup thread to pause, animate discards, and then start the loop!
+        new Thread(() -> {
+            try {
+                // Wait 1 full second for the Clients' JavaFX threads to build the UI seats
+                Thread.sleep(1000); 
+            } catch (InterruptedException ignored) {}
 
-        // Wire trap chooser
-        TrapCardHandler.TargetChooser trapChooser = buildTrapChooser();
+            // 4. Now that the UI exists, discard the pairs and trigger the animations!
+            for (Player p : players) {
+                List<Card> discarded = p.discardNonTrapPairs();
+                if (!discarded.isEmpty()) {
+                    gameState.log(p.getName() + " discarded " + (discarded.size() / 2) + " pair(s) at start");
+                    
+                    int slot = players.indexOf(p);
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < discarded.size(); i++) {
+                        if (i > 0) sb.append(",");
+                        sb.append(discarded.get(i).toString());
+                    }
+                    broadcast(Message.animDiscard(slot, sb.toString()));
+                }
+            }
 
-        gameLoop   = new GameLoop(gameState, trapChooser, animCb);
-        gameThread = new Thread(gameLoop, "Server-GameLoop");
-        gameThread.setDaemon(true);
-        gameThread.start();
+            // Sync the state one more time so the UI hands shrink after the animation
+            broadcastState();
 
-        onLog.accept("[Server] Game started with " + players.size() + " players.");
+            // 5. Wire the in-game callbacks and start the chaos!
+            GameLoop.AnimationCallback animCb = buildAnimationCallback();
+            TrapCardHandler.TargetChooser trapChooser = buildTrapChooser();
+
+            gameLoop   = new GameLoop(gameState, trapChooser, animCb);
+            gameThread = new Thread(gameLoop, "Server-GameLoop");
+            gameThread.setDaemon(true);
+            gameThread.start();
+
+            onLog.accept("[Server] Game started with " + players.size() + " players.");
+        }, "Server-GameStarter").start();
     }
 
     // ── Internal: build players ───────────────────────────────────────────────
@@ -380,7 +398,10 @@ public class GameServer {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < lb.size(); i++) {
             if (i > 0) sb.append(",");
-            sb.append(lb.get(i).getName());
+            
+            // THE FIX: Find their exact Slot ID and prepend it! (Format: "slot:name")
+            int slot = players.indexOf(lb.get(i)); 
+            sb.append(slot).append(":").append(lb.get(i).getName());
         }
         broadcast(Message.gameOver(sb.toString()));
         onLog.accept("[Server] Game over. Leaderboard: " + sb);
@@ -391,15 +412,28 @@ public class GameServer {
     private GameLoop.AnimationCallback buildAnimationCallback() {
         return new GameLoop.AnimationCallback() {
             @Override
-            public void playStealAnimation(Player stealer, Player target,
-                                            int cardIndex, Runnable onComplete) {
-                // Server has no UI — fire onComplete immediately
-                if (onComplete != null) onComplete.run();
+            public void playStealAnimation(Player stealer, Player target, int cardIndex, Runnable onComplete) {
+                int stealerSlot = players.indexOf(stealer);
+                int targetSlot  = players.indexOf(target);
+                
+                broadcast(Message.animSteal(stealerSlot, targetSlot, cardIndex));
+
+                // Pause the backend for 500ms so the UI can physically draw the flying card
+                new Thread(() -> {
+                    try { Thread.sleep(500); } catch (InterruptedException ignored) {}
+                    if (onComplete != null) onComplete.run();
+                }).start();
             }
 
             @Override
             public void playDiscardAnimation(Player player, List<Card> discardedCards) {
-                // No-op on server
+                int slot = players.indexOf(player);
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < discardedCards.size(); i++) {
+                    if (i > 0) sb.append(",");
+                    sb.append(discardedCards.get(i).toString());
+                }
+                broadcast(Message.animDiscard(slot, sb.toString()));
             }
         };
     }

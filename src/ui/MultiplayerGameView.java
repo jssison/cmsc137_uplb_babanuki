@@ -208,6 +208,29 @@ public class MultiplayerGameView extends StackPane {
     public void onGameOver(String[] names) {
         Platform.runLater(() -> showGameOver(names));
     }
+    // ── ANIMATION CALLBACKS ───────────────────────────────────────
+
+    public void onAnimSteal(int stealerSlot, int targetSlot, int cardIndex) {
+        Platform.runLater(() -> {
+            MpPlate stealerPlate = (stealerSlot >= 0 && stealerSlot < playerPlates.size()) ? playerPlates.get(stealerSlot) : null;
+            MpHandView targetView = (targetSlot >= 0 && targetSlot < handViews.size()) ? handViews.get(targetSlot) : null;
+
+            if (stealerPlate != null && targetView != null) {
+                animEngine.animateSteal(targetView.getCardNode(cardIndex), stealerPlate, null);
+            }
+        });
+    }
+
+    public void onAnimDiscard(int slot, String[] cards) {
+        Platform.runLater(() -> {
+            MpPlate plate = (slot >= 0 && slot < playerPlates.size()) ? playerPlates.get(slot) : null;
+            if (plate != null) {
+                for (String c : cards) {
+                    if (!c.isEmpty()) animEngine.animateDiscard(plate, c);
+                }
+            }
+        });
+    }
 
     // ── seat construction ─────────────────────────────────────────────────────
 
@@ -275,13 +298,7 @@ public class MultiplayerGameView extends StackPane {
             MpHandView view = handViews.get(i);
             view.setOnCardClicked(cardIndex -> {
                 if (!isMyTurn()) return;
-                if (myPlate != null) {
-                    animEngine.animateSteal(view.getCardNode(cardIndex), myPlate, () ->
-                        client.sendDraw(targetSlot, cardIndex)
-                    );
-                } else {
-                    client.sendDraw(targetSlot, cardIndex);
-                }
+                client.sendDraw(targetSlot, cardIndex); // THE FIX: Just ask the server. No local animation!
             });
         }
 
@@ -404,7 +421,7 @@ public class MultiplayerGameView extends StackPane {
 
     // ── game over ─────────────────────────────────────────────────────────────
 
-    private void showGameOver(String[] names) {
+    private void showGameOver(String[] entries) { // Note: changed variable name to 'entries' for clarity
         VBox box = new VBox(15);
         box.setAlignment(Pos.CENTER);
         box.setMaxWidth(400);
@@ -422,12 +439,18 @@ public class MultiplayerGameView extends StackPane {
         title.setStyle("-fx-font-family: 'Playfair Display', serif; -fx-font-size: 32px; -fx-font-weight: bold; -fx-text-fill: #e8c87a;");
         box.getChildren().add(title);
 
-        String myName = mySlot >= 0 && mySlot < playerNames.length ? playerNames[mySlot] : "";
+        // REMOVED: String myName = ... 
+
         String[] rankLabels = {"1ST","2ND","3RD","4TH"};
 
-        for (int i = 0; i < names.length; i++) {
-            boolean loser = i == names.length - 1;
-            boolean isMe  = names[i].equals(myName);
+        for (int i = 0; i < entries.length; i++) {
+            // THE FIX: Parse the incoming "slot:name" string!
+            String[] parts = entries[i].split(":", 2);
+            int slot = parts.length == 2 ? parseInt(parts[0]) : -1;
+            String playerName = parts.length == 2 ? parts[1] : entries[i];
+
+            boolean loser = i == entries.length - 1;
+            boolean isMe  = (slot == mySlot); // Flawless matching by socket ID!
 
             HBox row = new HBox(15);
             row.setAlignment(Pos.CENTER_LEFT);
@@ -436,7 +459,7 @@ public class MultiplayerGameView extends StackPane {
             Label rank = new Label(loser ? "LSR" : (i < rankLabels.length ? rankLabels[i] : (i+1)+"TH"));
             rank.setStyle("-fx-font-family: 'DM Mono', monospace; -fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: " + (loser ? "#e05555" : i == 0 ? "#e8c87a" : "#8ca898") + ";");
 
-            Label name = new Label(names[i] + (loser ? " (Babanuki!)" : "") + (isMe ? " ← you" : ""));
+            Label name = new Label(playerName + (loser ? " (Babanuki!)" : "") + (isMe ? " ← you" : ""));
             name.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 15px; -fx-text-fill: " + (loser ? "#e05555" : "#fdf6e3") + ";");
 
             Region sp = new Region(); HBox.setHgrow(sp, Priority.ALWAYS);

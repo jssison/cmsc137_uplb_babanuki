@@ -62,6 +62,12 @@ public class Main extends Application {
             @Override public void onDisconnect(String reason)      {
                 javafx.application.Platform.runLater(this::showMainMenu);
             }
+            @Override public void onAnimSteal(int stealerSlot, int targetSlot, int cardIndex) {
+                mpView.onAnimSteal(stealerSlot, targetSlot, cardIndex);
+            }
+            @Override public void onAnimDiscard(int slot, String[] cards) {
+                mpView.onAnimDiscard(slot, cards);
+            }
             private void showMainMenu() { Main.this.showMainMenu(); }
         });
     }

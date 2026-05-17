@@ -65,6 +65,9 @@ public class GameClient {
 
         /** server sends this client its own hand. each entry: "displayStr:RED|BLACK:trapName|NONE" */
         void onHand(String[] cardEntries);
+        
+        default void onAnimSteal(int stealerSlot, int targetSlot, int cardIndex) {}
+        default void onAnimDiscard(int slot, String[] cards) {}
     }
 
     // ── Fields ────────────────────────────────────────────────────────────────
@@ -220,6 +223,20 @@ public class GameClient {
                     case Message.ERROR -> {
                         callbacks.onLog("[ERROR] " + msg.part(0));
                     }
+                    
+                    case Message.ANIM_STEAL -> {
+                        int stealer = Integer.parseInt(msg.part(0));
+                        int target  = Integer.parseInt(msg.part(1));
+                        int cardIdx = Integer.parseInt(msg.part(2));
+                        callbacks.onAnimSteal(stealer, target, cardIdx);
+                    }
+
+                    case Message.ANIM_DISCARD -> {
+                        int slot = Integer.parseInt(msg.part(0));
+                        String[] cards = msg.part(1).split(",", -1);
+                        callbacks.onAnimDiscard(slot, cards);
+                    }
+                    // ----------------------------------------------
 
                     
                     default -> {
