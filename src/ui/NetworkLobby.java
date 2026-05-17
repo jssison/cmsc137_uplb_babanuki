@@ -35,11 +35,11 @@ public class NetworkLobby extends StackPane {
     private final TextArea logArea = new TextArea();
     
     private final Spinner<Integer> botSpinner = new Spinner<>(0, 3, 0);
+    private Button startMatchBtn;
 
     private static final String[] ANIMAL_ICONS = {
-        "bear.png", "cat.png", "chicken.png", "dog.png", "gorilla.png", 
-        "koala.png", "meerkat.png", "panda.png", "puffer-fish.png", 
-        "rabbit.png", "sea-lion.png", "shark.png", "sloth.png", "wolf.png"
+        "monkey.png","dragon.png","rat.png","rabbit.png",
+        "cow.png","pig.png","bear.png","cat.png","dog.png"
     };
 
     public NetworkLobby(String ignoredName, BiConsumer<GameServer, GameClient> onHostReady, Consumer<GameClient> onJoinReady, Runnable onCancel) {
@@ -157,16 +157,17 @@ public class NetworkLobby extends StackPane {
 
         if (isHost) {
             Label botLbl = styledLabel("Fill Empty Slots with Bots:");
-            // THE FIX: Use the class-level botSpinner, don't create a new one!
             botSpinner.setStyle("-fx-base: #0d1f16; -fx-control-inner-background: #0d1f16; -fx-text-fill: #fdf6e3;");
             
-            // Clear old listeners to prevent network spam if they leave and re-host
             botSpinner.valueProperty().removeListener((obs, oldVal, newVal) -> srv.setCpuCount(newVal));
             botSpinner.valueProperty().addListener((obs, oldVal, newVal) -> srv.setCpuCount(newVal));
 
-            Button startBtn = makeButton("Start Match", "#2e6644", "#e8c87a");
-            startBtn.setOnAction(e -> cli.send(Message.startGame()));
-            controlArea.getChildren().addAll(botLbl, botSpinner, startBtn);
+            // THE FIX: Use the class field and disable it by default
+            startMatchBtn = makeButton("Start Match", "#2e6644", "#e8c87a");
+            startMatchBtn.setDisable(true); 
+            startMatchBtn.setOnAction(e -> cli.send(Message.startGame()));
+            
+            controlArea.getChildren().addAll(botLbl, botSpinner, startMatchBtn);
         } else {
             Label waitLbl = styledLabel("Waiting for Host to start match...");
             controlArea.getChildren().add(waitLbl);
@@ -241,6 +242,10 @@ public class NetworkLobby extends StackPane {
             if (botSpinner.getValue() != botCount) {
                 factory.setValue(botCount);
             }
+        }
+        
+        if (startMatchBtn != null) {
+            startMatchBtn.setDisable((humanCount + botCount) < 2);
         }
     }
 

@@ -234,6 +234,8 @@ public class MultiplayerGameView extends StackPane {
 
     // ── seat construction ─────────────────────────────────────────────────────
 
+ // ── seat construction ─────────────────────────────────────────────────────
+
     private void rebuildSeats() {
         topSeat.getChildren().clear();
         leftSeat.getChildren().clear();
@@ -243,11 +245,14 @@ public class MultiplayerGameView extends StackPane {
         handViews.clear();
         playerPlates.clear();
 
-        List<String> icons = new ArrayList<>(Arrays.asList(ANIMAL_ICONS));
-        Collections.shuffle(icons);
-
         for (int i = 0; i < playerNames.length; i++) {
-            String icon = "/assets/avatars/" + icons.remove(0);
+            String name = playerNames[i];
+            
+            // THE FIX: Check if they are a bot, otherwise give them their deterministic Lobby animal!
+            boolean isBot = name != null && name.startsWith("CPU");
+            String iconFilename = isBot ? "dog.png" : ANIMAL_ICONS[i % ANIMAL_ICONS.length];
+            String icon = "/assets/avatars/" + iconFilename;
+            
             boolean isMe = i == mySlot;
 
             // build a lightweight proxy Player so we can reuse MpHandView / MpPlate
