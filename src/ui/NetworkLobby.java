@@ -36,6 +36,7 @@ public class NetworkLobby extends StackPane {
     
     private final Spinner<Integer> botSpinner = new Spinner<>(0, 3, 0);
     private Button startMatchBtn;
+    private final TextArea configLogArea = new TextArea();
 
     private static final String[] ANIMAL_ICONS = {
         "monkey.png","dragon.png","rat.png","rabbit.png",
@@ -94,30 +95,72 @@ public class NetworkLobby extends StackPane {
 
         Button backBtn = makeButton("Back to Menu", "#4a2e2e", "#e05555");
         backBtn.setOnAction(e -> onCancel.run());
+        
+        
+        configLogArea.setEditable(false);
+        configLogArea.setPrefHeight(100); 	
+        configLogArea.setWrapText(true);
+        configLogArea.setStyle("-fx-control-inner-background: #0d1f16; -fx-font-family: 'DM Mono', monospace; -fx-text-fill: #e05555; -fx-border-color: #2e6644;");
 
-        configStage.getChildren().addAll(title, nameBox, hostBox, joinBox, backBtn);
+        configStage.getChildren().addAll(title, nameBox, hostBox, joinBox, backBtn, configLogArea);
     }
 
     private void startHosting() {
         int port = parsePort(hostPortInput.getText(), GameServer.DEFAULT_PORT);
+        configLogArea.appendText("[System] Attempting to host on port " + port + "...\n");
+
         try {
-            // Start server with 0 bots initially. We add them in the Waiting Room!
             GameServer srv = new GameServer(port, GameServer.MAX_PLAYERS, 0, this::appendLog);
             srv.start();
+            
             GameClient cli = new GameClient("localhost", port, getPlayerName(), null);
             enterWaitingRoom(cli, srv, true);
-            cli.connect();
-        } catch (IOException e) { System.out.println("Host error: " + e); }
+            
+            new Thread(() -> {
+                try {
+                    cli.connect();
+                } catch (IOException e) {
+                    Platform.runLater(() -> {
+                        waitingRoomStage.setVisible(false);
+                        configStage.setVisible(true);
+                        configLogArea.appendText("[Error] Could not connect to local server.\n");
+                    });
+                }
+            }, "Host-Connector").start();
+
+        } catch (IOException e) {
+            waitingRoomStage.setVisible(false);
+            configStage.setVisible(true);
+            configLogArea.appendText("[Error] Port " + port + " might already be in use.\n");
+        }
     }
 
     private void startJoining() {
         String ip = joinIpInput.getText().trim();
         int port = parsePort(joinPortInput.getText(), GameServer.DEFAULT_PORT);
+        String targetIp = ip.isEmpty() ? "localhost" : ip;
+        
+        configLogArea.appendText("[System] Attempting to connect to " + targetIp + ":" + port + "...\n");
+        
         try {
-            GameClient cli = new GameClient(ip.isEmpty() ? "localhost" : ip, port, getPlayerName(), null);
+            GameClient cli = new GameClient(targetIp, port, getPlayerName(), null);
             enterWaitingRoom(cli, null, false);
-            cli.connect();
-        } catch (IOException e) { System.out.println("Join error: " + e); }
+            
+            new Thread(() -> {
+                try {
+                    cli.connect();
+                } catch (IOException e) {
+                    Platform.runLater(() -> {
+                        waitingRoomStage.setVisible(false);
+                        configStage.setVisible(true);
+                        configLogArea.appendText("[Error] Could not find a lobby at " + targetIp + ":" + port + "\n");
+                    });
+                }
+            }, "Join-Connector").start();
+            
+        } catch (Exception e) {
+            configLogArea.appendText("[Error] Connection setup failed.\n");
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -201,7 +244,18 @@ public class NetworkLobby extends StackPane {
             @Override public void onTrapPrompt(String t, String[] opts) {}
             @Override public void onGameOver(String[] names) {}
             @Override public void onChat(String s, String txt) {}
-            @Override public void onDisconnect(String reason) { Platform.runLater(() -> logArea.appendText("[Disconnect] " + reason + "\n")); }
+            @Override public void onDisconnect(String reason) { 
+                Platform.runLater(() -> {
+                    logArea.appendText("[Disconnect] " + reason + "\n");
+                    
+                    // Revert UI to config stage
+                    waitingRoomStage.setVisible(false);
+                    configStage.setVisible(true);
+                    
+                    // THE FIX: Append the kick reason to the Stage 1 log!
+                    configLogArea.appendText("[Disconnected] " + reason + "\n");
+                }); 
+            }
         });
     }
 

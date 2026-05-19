@@ -195,19 +195,26 @@ public class GameServer {
     // ── Internal: accept loop ─────────────────────────────────────────────────
     
     private void acceptLoop() {
-        while (running && handlers.size() < humanSlots) {
+        while (running) {
             try {
                 Socket socket = serverSocket.accept();
                 
-                // THE LOCKDOWN FIX: If game is running, reject the connection instantly!
+                // reject players if game already started
                 if (gameState != null && gameState.getStatus() == GameState.GameStatus.PLAYING) {
                     ClientHandler handler = new ClientHandler(socket, -1, this);
                     handler.send(Message.error("Game is currently in progress. Connections are locked."));
                     handler.close();
-                    continue; // Go back to listening
+                    continue; 
                 }
 
-                // --- NORMAL LOBBY LOGIC ---
+                // reject if lobby is full of humans
+                if (handlers.size() >= MAX_PLAYERS) {
+                    ClientHandler handler = new ClientHandler(socket, -1, this);
+                    handler.send(Message.error("Lobby is full. Max 4 players allowed."));
+                    handler.close();
+                    continue; // Go back to waiting for legitimate openings
+                }
+
                 int slot = handlers.size();
                 ClientHandler handler = new ClientHandler(socket, slot, this);
                 handlers.add(handler);
@@ -218,11 +225,9 @@ public class GameServer {
                 onLog.accept("[Server] Player connected: slot " + slot
                         + " from " + socket.getInetAddress().getHostAddress());
 
-                // If all human slots filled, wait 800ms, THEN auto-start
-                if (handlers.size() == humanSlots) {
-                    onLog.accept("[Server] All human slots filled. Waiting for Host to start...");
-                    broadcastLobby(); // THE FIX: Just update the Waiting Room, do NOT start the game!
-                }
+                // Instantly update the Waiting Room cards for everyone
+                broadcastLobby();
+                
             } catch (IOException e) {
                 if (running) onLog.accept("[Server] Accept error: " + e.getMessage());
             }
