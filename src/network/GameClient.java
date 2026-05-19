@@ -152,6 +152,11 @@ public class GameClient {
         send(Message.chat(playerName, text));
     }
     
+    /** tell server to shuffle my hand. */
+    public void sendShuffle() { 
+        send(Message.shuffle()); 
+    }
+    
     public void send(String message) {
     	if (out != null && connected) {
     		out.println(message);

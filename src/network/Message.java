@@ -72,6 +72,9 @@ public class Message {
     public static final String SET_NAME     = "SET_NAME";
     public static final String LOBBY_STATE  = "LOBBY_STATE";
     public static final String START_GAME   = "START_GAME";
+    
+    /** client → server: human wants to shuffle their own hand */
+    public static final String SHUFFLE    = "SHUFFLE";
 
     // ── Fields ───────────────────────────────────────────────────────────────
 
@@ -172,6 +175,8 @@ public class Message {
     public static String setName(String name) { return SET_NAME + "|" + name; }
     public static String lobbyState(String stateCsv) { return LOBBY_STATE + "|" + stateCsv; }
     public static String startGame() { return START_GAME; }
+    
+    public static String shuffle() { return SHUFFLE; }
 
     // ── Convenience getters ───────────────────────────────────────────────────
 

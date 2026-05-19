@@ -215,6 +215,10 @@ public class Player {
 	public synchronized int getExtraDraws() {
 		return this.extraDraws;
 	}
+	
+	public synchronized void shuffleHand() {
+		java.util.Collections.shuffle(hand);
+	}
 
 	// getters
 	public boolean getIsOut()        { return isOut; }

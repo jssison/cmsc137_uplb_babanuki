@@ -294,6 +294,7 @@ public class GameServer {
             case Message.TRAP_CHOICE -> handleTrapChoice(sender, msg);
             case Message.TRAP_PLAY -> handleTrapPlay(sender, msg);
             case Message.CHAT      -> broadcast(Message.chat(sender.playerName, msg.part(0)));
+            case Message.SHUFFLE   -> handleShuffle(sender);
             default -> sender.send(Message.error("Unknown message type: " + msg.type));
         }
     }
@@ -321,6 +322,16 @@ public class GameServer {
         }
         
         broadcast(Message.lobbyState(sb.toString()));
+    }
+    
+    private void handleShuffle(ClientHandler sender) {
+        if (gameState == null || sender.slot >= players.size()) return;
+
+        Player human = players.get(sender.slot);
+        human.shuffleHand();
+
+        // This pushes the newly shuffled hand back to the client's screen
+        broadcastState(); 
     }
 
     private void handleTrapPlay(ClientHandler sender, Message msg) {

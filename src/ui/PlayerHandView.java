@@ -42,6 +42,27 @@ public class PlayerHandView extends VBox {
 			"-fx-background-radius: 8;"
 		);
 
+		if (revealCards) {
+            Button shuffleBtn = new Button("⟳ Shuffle Hand");
+            shuffleBtn.setStyle(
+                "-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 11px; -fx-font-weight: bold;" +
+                "-fx-text-fill: #8ca898; -fx-background-color: transparent;" +
+                "-fx-border-color: #2e6644; -fx-border-radius: 4; -fx-cursor: hand;"
+            );
+            shuffleBtn.setOnMouseEntered(e -> shuffleBtn.setOpacity(0.6));
+            shuffleBtn.setOnMouseExited(e -> shuffleBtn.setOpacity(1.0));
+            
+            shuffleBtn.setOnAction(e -> {
+                player.shuffleHand();
+                lastHandSnapshot.clear(); // Force the UI to redraw immediately
+                refresh(false);
+            });
+            
+            javafx.scene.layout.HBox header = new javafx.scene.layout.HBox(shuffleBtn);
+            header.setAlignment(Pos.CENTER_RIGHT);
+            getChildren().add(header); 
+        }
+
 		cardRow.setPrefWrapLength(500);
 		cardRow.setAlignment(Pos.CENTER_LEFT);
 		getChildren().add(cardRow);
