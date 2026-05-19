@@ -55,31 +55,24 @@ public class PlayerHandView extends VBox {
 			return;
 		}
 
-		List<Card>      currentHand   = player.getHand();
-		List<Card.Trap> pendingTraps  = revealCards ? player.getPendingTrapPairs() : new ArrayList<>();
+		List<Card>      currentHand  = player.getHand();
+		List<Card.Trap> pendingTraps = revealCards ? player.getPendingTrapPairs() : new ArrayList<>();
 		boolean handChanged    = !lastHandSnapshot.equals(currentHand);
 		boolean targetChanged  = lastTargetStatus != isTarget;
 		boolean trapsChanged   = !lastPendingTraps.equals(pendingTraps);
 
 		if (handChanged || targetChanged || trapsChanged) {
 			cardRow.getChildren().clear();
+            
+            // Track which traps have been wired to prevent double-firing if they mash the button
+            java.util.Set<Card.Trap> wiredTraps = new java.util.HashSet<>();
 
 			for (int i = 0; i < currentHand.size(); i++) {
 				Card card = currentHand.get(i);
-				// if this card is part of a playable trap pair, show play button instead
-				if (revealCards && card.isTrap() && pendingTraps.contains(card.getTrap())) {
-					// only add the play button once per trap type (first card of pair)
-					boolean alreadyAdded = cardRow.getChildren().stream()
-						.anyMatch(n -> n.getUserData() == card.getTrap());
-					if (!alreadyAdded) {
-						cardRow.getChildren().add(createTrapPlayButton(card, card.getTrap()));
-					} else {
-						// second card of pair — show faded so player sees both cards exist
-						cardRow.getChildren().add(createFadedTrapCard(card));
-					}
-				} else {
-					cardRow.getChildren().add(createCardButton(card, i, isTarget));
-				}
+                boolean isPlayable = revealCards && card.isTrap() && pendingTraps.contains(card.getTrap());
+
+                // We now route ALL cards through a single, much smarter method!
+				cardRow.getChildren().add(createCardButton(card, i, isTarget, isPlayable, wiredTraps));
 			}
 
 			lastHandSnapshot = new ArrayList<>(currentHand);
@@ -87,77 +80,65 @@ public class PlayerHandView extends VBox {
 			lastPendingTraps = new ArrayList<>(pendingTraps);
 		}
 	}
-
-	// glowing play button shown on trap pairs in the human hand
-	private Button createTrapPlayButton(Card card, Card.Trap trap) {
-		Button btn = new Button(card.toString() + "\n▶ PLAY");
-		btn.setUserData(trap); // used above to detect duplicates
-		btn.setStyle(
-			"-fx-font-family: 'DM Mono', monospace;" +
-			"-fx-font-size: 11px;" +
-			"-fx-font-weight: bold;" +
-			"-fx-text-fill: #122a1e;" +
-			"-fx-background-color: #e8c87a;" +
-			"-fx-border-color: #f0a030;" +
-			"-fx-border-width: 2;" +
-			"-fx-border-radius: 6;" +
-			"-fx-background-radius: 6;" +
-			"-fx-min-width: 44px;" +
-			"-fx-min-height: 60px;" +
-			"-fx-cursor: hand;" +
-			"-fx-effect: dropshadow(three-pass-box, #f0a03099, 8, 0, 0, 0);"
-		);
-		btn.setOnMousePressed(e -> {
-			if (onTrapPlayed != null) onTrapPlayed.accept(trap);
-		});
-		btn.setOnMouseEntered(e -> btn.setOpacity(0.75));
-		btn.setOnMouseExited(e -> btn.setOpacity(1.0));
-		return btn;
-	}
-
-	// second card of a trap pair — shown faded, not clickable
-	private Button createFadedTrapCard(Card card) {
-		String color = card.getSuit().isRed() ? "#cc3333" : "#1a1a2e";
-		Button btn = new Button(card.toString());
-		btn.setStyle(
-			"-fx-font-family: 'DM Mono', monospace;" +
-			"-fx-font-size: 13px;" +
-			"-fx-font-weight: bold;" +
-			"-fx-text-fill: " + color + ";" +
-			"-fx-background-color: #fdf6e3;" +
-			"-fx-border-color: #f0a030;" +
-			"-fx-border-width: 2;" +
-			"-fx-border-radius: 6;" +
-			"-fx-background-radius: 6;" +
-			"-fx-min-width: 44px;" +
-			"-fx-min-height: 60px;" +
-			"-fx-opacity: 0.5;" +
-			"-fx-cursor: default;"
-		);
-		return btn;
-	}
-
-	private Button createCardButton(Card card, int index, boolean isTarget) {
+	
+	private Button createCardButton(Card card, int index, boolean isTarget, boolean isPlayable, java.util.Set<Card.Trap> wiredTraps) {
 		Button btn = new Button();
 
 		if (revealCards) {
-			// human hand — face up, not clickable by self
+			// human hand — face up, not clickable by self unless it's a playable trap
 			btn.setText(card.toString());
-			String color = card.getSuit().isRed() ? "#cc3333" : "#1a1a2e";
-			btn.setStyle(
-				"-fx-font-family: 'DM Mono', monospace;" +
-				"-fx-font-size: 13px;" +
-				"-fx-font-weight: bold;" +
-				"-fx-text-fill: " + color + ";" +
-				"-fx-background-color: #fdf6e3;" +
-				"-fx-border-color: #c8b870;" +
-				"-fx-border-width: 1;" +
-				"-fx-border-radius: 6;" +
-				"-fx-background-radius: 6;" +
-				"-fx-min-width: 44px;" +
-				"-fx-min-height: 60px;" +
-				"-fx-cursor: default;"
-			);
+            
+            if (card.isTrap()) {
+                // THE FIX: Dark Mode Trap Card Styling!
+                String color = card.getSuit().isRed() ? "#ff5555" : "#fdf6e3";
+                String baseStyle = 
+                    "-fx-font-family: 'DM Mono', monospace;" +
+                    "-fx-font-size: 13px;" +
+                    "-fx-font-weight: bold;" +
+                    "-fx-text-fill: " + color + ";" +
+                    "-fx-background-color: #121212;" + // Obsidian Black
+                    "-fx-border-color: #f0a030;" +
+                    "-fx-border-width: 2;" +
+                    "-fx-border-radius: 6;" +
+                    "-fx-background-radius: 6;" +
+                    "-fx-min-width: 44px;" +
+                    "-fx-min-height: 60px;";
+                    
+                if (isPlayable) {
+                    // Playable Pair! Make it glow and clickable.
+                    btn.setStyle(baseStyle + "-fx-cursor: hand; -fx-effect: dropshadow(three-pass-box, #f0a030, 10, 0.5, 0, 0);");
+                    Card.Trap trap = card.getTrap();
+                    
+                    btn.setOnMousePressed(e -> {
+                        if (onTrapPlayed != null && !wiredTraps.contains(trap)) {
+                            wiredTraps.add(trap); // Lock out the other card in the pair
+                            onTrapPlayed.accept(trap);
+                        }
+                    });
+                    btn.setOnMouseEntered(e -> btn.setOpacity(0.8));
+                    btn.setOnMouseExited(e -> btn.setOpacity(1.0));
+                } else {
+                    // Single Trap Card. Just Dark Mode, no glow.
+                    btn.setStyle(baseStyle + "-fx-cursor: default;");
+                }
+            } else {
+                // Standard Normal Card
+                String color = card.getSuit().isRed() ? "#cc3333" : "#1a1a2e";
+                btn.setStyle(
+                    "-fx-font-family: 'DM Mono', monospace;" +
+                    "-fx-font-size: 13px;" +
+                    "-fx-font-weight: bold;" +
+                    "-fx-text-fill: " + color + ";" +
+                    "-fx-background-color: #fdf6e3;" +
+                    "-fx-border-color: #c8b870;" +
+                    "-fx-border-width: 1;" +
+                    "-fx-border-radius: 6;" +
+                    "-fx-background-radius: 6;" +
+                    "-fx-min-width: 44px;" +
+                    "-fx-min-height: 60px;" +
+                    "-fx-cursor: default;"
+                );
+            }
 		} else if (isTarget) {
 			// opponent hand, human can click to draw
 			btn.setText("?");

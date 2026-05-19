@@ -60,6 +60,7 @@ public class GameServer {
     private volatile List<Player>      pendingTrapTargets  = null;
 
     private volatile boolean running = false;
+    private volatile ClientHandler currentTrapActivator = null;
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -328,9 +329,15 @@ public class GameServer {
         model.Card.Trap trap;
         try { trap = model.Card.Trap.valueOf(trapName); }
         catch (IllegalArgumentException e) { sender.send(Message.error("unknown trap: " + trapName)); return; }
+        
         Player human = players.get(sender.slot);
-        gameLoop.submitHumanTrapPlay(human, trap);
-        gameLoop.processHumanTrapPlay(human);
+        
+        synchronized(this) {
+            currentTrapActivator = sender;
+            gameLoop.submitHumanTrapPlay(human, trap);
+            gameLoop.processHumanTrapPlay(human);
+            currentTrapActivator = null;
+        }
     }
 
     private void handleDraw(ClientHandler sender, Message msg) {
@@ -424,14 +431,26 @@ public class GameServer {
         // format per card: displayStr:RED|BLACK:TRAPNAME|NONE
         for (ClientHandler h : handlers) {
             if (h.slot < 0 || h.slot >= ps.size()) continue;
-            List<model.Card> hand = ps.get(h.slot).getHand();
+            
+            Player humanPlayer = ps.get(h.slot);
+            List<model.Card> hand = humanPlayer.getHand();
+            
+            // Ask the server engine if this player has actionable traps
+            List<model.Card.Trap> pendingPairs = humanPlayer.getPendingTrapPairs();
+            
             StringBuilder handSb = new StringBuilder();
             for (int j = 0; j < hand.size(); j++) {
                 if (j > 0) handSb.append(",");
                 model.Card c = hand.get(j);
+                
                 handSb.append(c.toString())
                       .append(":").append(c.getSuit().isRed() ? "RED" : "BLACK")
                       .append(":").append(c.isTrap() ? c.getTrap().name() : "NONE");
+                      
+                // THE FIX: Tell the UI exactly which cards are ready to fire!
+                if (c.isTrap() && pendingPairs.contains(c.getTrap())) {
+                    handSb.append(":PLAYABLE");
+                }
             }
             h.send(Message.hand(h.slot, handSb.toString()));
         }
@@ -489,21 +508,11 @@ public class GameServer {
     private TrapCardHandler.TargetChooser buildTrapChooser() {
         return (prompt, targets, onChosen) -> {
             if (targets.isEmpty()) return;
+            
+            ClientHandler humanClient = currentTrapActivator;
 
-            // Find the human client who activated the trap
-            // We identify by checking which human player just acted.
-            // Simplification: find the first non-CPU human client that is still in
-            // A more robust approach stores the "activator" — wired below.
-            // For now, we ask client slot 0 if they're human, else auto-pick.
-
-            // Find the activating human client
-            ClientHandler humanClient = handlers.stream()
-                .filter(h -> h.slot < players.size() && players.get(h.slot).getIsHuman())
-                .findFirst()
-                .orElse(null);
-
+            // Fallback for AI or if something goes wrong
             if (humanClient == null) {
-                // All humans gone or no clients — auto pick first target
                 onChosen.accept(targets.get(0));
                 return;
             }
@@ -512,19 +521,19 @@ public class GameServer {
             StringBuilder targetSlots = new StringBuilder();
             for (int i = 0; i < targets.size(); i++) {
                 if (i > 0) targetSlots.append(",");
-                // Ask the master players list for this exact target's slot ID!
                 targetSlots.append(players.indexOf(targets.get(i)));
             }
+            
             // Extract trap name from prompt (e.g. "SINGKO! Choose...")
             String trapName = prompt.split("!")[0].trim();
-
+            
             // Set pending state so handleTrapChoice can resolve it
             pendingTrapSlot     = humanClient.slot;
             pendingTrapCallback = onChosen;
             pendingTrapTargets  = new ArrayList<>(targets);
 
             humanClient.send(Message.trapPrompt(trapName, targetSlots.toString()));
-            onLog.accept("[Server] Trap prompt sent to " + humanClient.playerName);
+            onLog.accept("[Server] Trap prompt safely routed to activator: " + humanClient.playerName);
         };
     }
 

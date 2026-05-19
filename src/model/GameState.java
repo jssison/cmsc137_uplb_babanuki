@@ -50,16 +50,7 @@ public class GameState {
 		if (!started) return;
 		if (status == GameStatus.FINISHED) return;
 
-		// flush unplayed trap pairs at end — they count as normal discards
-		for (Player p : players) {
-			if (!p.getIsOut()) {
-				List<Card> flushed = p.discardAllPairs();
-				if (!flushed.isEmpty())
-					log(p.getName() + " auto-discarded " + (flushed.size()/2) + " unplayed trap pair(s)");
-			}
-		}
-		
-		// add newly-safe players to leaderboard in iteration order
+		// Add players to leaderboard
 		for (Player p : players) {
 			if (p.getIsOut() && !leaderboard.contains(p)) {
 				leaderboard.add(p);
@@ -68,34 +59,49 @@ public class GameState {
 		}
 		
 		List<Player> stillInGame = getActivePlayers();
+		boolean isGameOver = false;
 		
-		// Case 1: only one player left — they hold the Queen
-		if (stillInGame.size() == 1) {
-			Player loser = stillInGame.get(0);
-			if (!leaderboard.contains(loser)) {
-				leaderboard.add(loser);
-				log(loser.getName() + " is holding the Queen (Babanuki!)");
-			}
-			status = GameStatus.FINISHED;
-			return;
-		}
-		
-		// Case 2: everyone is out (safety net)
-		if (stillInGame.isEmpty()) {
-			status = GameStatus.FINISHED;
-			return;
-		}
-		
-		// Case 3: a player has no valid draw targets left
-		for (Player p : stillInGame) {
-			if (p.getNextDrawTarget() == null) {
-				if (!leaderboard.contains(p)) {
-					leaderboard.add(p);
-					log(p.getName() + " is holding the Queen");
+		// Check if game is over
+		if (stillInGame.size() <= 1) {
+			isGameOver = true;
+		} else {
+			for (Player p : stillInGame) {
+				if (p.getNextDrawTarget() == null) {
+					isGameOver = true;
+					break;
 				}
-				status = GameStatus.FINISHED;
-				return;
 			}
+		}
+		
+		// Only flush traps if game over
+		if (isGameOver) {
+			// Flush unplayed trap pairs so players holding them are marked safe
+			for (Player p : stillInGame) {
+				List<Card> flushed = p.discardAllPairs();
+				if (!flushed.isEmpty()) {
+					log(p.getName() + " auto-discarded " + (flushed.size()/2) + " unplayed trap pair(s) at end of game");
+				}
+			}
+			
+			// Re-evaluate who is left holding the Queen
+			stillInGame = getActivePlayers();
+			
+			if (stillInGame.size() == 1) {
+				Player loser = stillInGame.get(0);
+				if (!leaderboard.contains(loser)) {
+					leaderboard.add(loser);
+					log(loser.getName() + " is holding the Queen (Babanuki!)");
+				}
+			} else {
+				// Safety net for edge cases
+				for (Player p : stillInGame) {
+					if (!leaderboard.contains(p)) {
+						leaderboard.add(p);
+						log(p.getName() + " is holding the Queen");
+					}
+				}
+			}
+			status = GameStatus.FINISHED;
 		}
 	}
 

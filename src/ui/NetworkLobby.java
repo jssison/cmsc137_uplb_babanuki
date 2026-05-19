@@ -96,7 +96,6 @@ public class NetworkLobby extends StackPane {
         Button backBtn = makeButton("Back to Menu", "#4a2e2e", "#e05555");
         backBtn.setOnAction(e -> onCancel.run());
         
-        
         configLogArea.setEditable(false);
         configLogArea.setPrefHeight(100); 	
         configLogArea.setWrapText(true);
@@ -110,6 +109,7 @@ public class NetworkLobby extends StackPane {
         configLogArea.appendText("[System] Attempting to host on port " + port + "...\n");
 
         try {
+        	// Start server with 0 bots initially
             GameServer srv = new GameServer(port, GameServer.MAX_PLAYERS, 0, this::appendLog);
             srv.start();
             
@@ -166,7 +166,7 @@ public class NetworkLobby extends StackPane {
     // ══════════════════════════════════════════════════════════════════════════
     //  STAGE 2: WAITING ROOM (Avatars, Chat, Bot Spinner)
     // ══════════════════════════════════════════════════════════════════════════
-
+    
     private void buildWaitingRoomStage() {
         waitingRoomStage.setPadding(new Insets(30));
 

@@ -647,7 +647,6 @@ public class MultiplayerGameView extends StackPane {
             cardRow.getChildren().clear();
 
             if (hideCards) {
-                // opponent — show hidden card backs or clickable ?-cards
                 for (int i = 0; i < cardCount; i++) {
                     final int idx = i;
                     Button btn = new Button(isTarget ? "?" : "▪");
@@ -672,65 +671,52 @@ public class MultiplayerGameView extends StackPane {
                 return;
             }
 
-            // my own hand — show face-up cards, trap pairs get PLAY button
-            // collect pending trap types (those appearing as a pair)
-            List<String> pendingTraps = new ArrayList<>();
-            List<String> displayList = new ArrayList<>(Arrays.asList(handEntries));
-            // count trap types
-            java.util.Map<String, Integer> trapCounts = new java.util.HashMap<>();
-            for (String entry : displayList) {
-                String[] p = entry.split(":", -1);
-                String trap = p.length >= 3 ? p[2] : "NONE";
-                if (!"NONE".equals(trap)) trapCounts.merge(trap, 1, Integer::sum);
-            }
-            for (var kv : trapCounts.entrySet()) {
-                if (kv.getValue() >= 2) pendingTraps.add(kv.getKey());
-            }
+            // my own hand — show face-up cards
+            // Use a Set to track if we've already wired a click event for a specific trap type this render
+            java.util.Set<String> wiredTraps = new java.util.HashSet<>();
 
             for (int i = 0; i < handEntries.length; i++) {
                 String[] p = handEntries[i].split(":", -1);
                 String display = p.length >= 1 ? p[0] : "?";
                 boolean isRed  = p.length >= 2 && "RED".equals(p[1]);
                 String  trap   = p.length >= 3 ? p[2] : "NONE";
+                // THE FIX: Listen to the server to know if it's playable!
+                boolean isPlayable = p.length >= 4 && "PLAYABLE".equals(p[3]);
 
-                if (!"NONE".equals(trap) && pendingTraps.contains(trap)) {
-                    // check if play button already added for this trap
-                    boolean playAdded = cardRow.getChildren().stream()
-                        .anyMatch(n -> trap.equals(n.getUserData()));
-                    if (!playAdded) {
-                        // play button (first card of pair)
-                        Button btn = new Button(display + "\n▶ PLAY");
-                        btn.setUserData(trap);
-                        btn.setStyle(
-                            "-fx-font-family: 'DM Mono', monospace;" +
-                            "-fx-font-size: 11px; -fx-font-weight: bold;" +
-                            "-fx-text-fill: #122a1e; -fx-background-color: #e8c87a;" +
-                            "-fx-border-color: #f0a030; -fx-border-width: 2;" +
-                            "-fx-border-radius: 6; -fx-background-radius: 6;" +
-                            "-fx-min-width: 44px; -fx-min-height: 60px; -fx-cursor: hand;" +
-                            "-fx-effect: dropshadow(three-pass-box, #f0a03099, 8, 0, 0, 0);"
-                        );
+                Button btn = new Button(display);
+                
+                if (!"NONE".equals(trap)) {
+                    // It is a Trap Card! Use Dark Mode styling.
+                    String color = isRed ? "#ff5555" : "#fdf6e3";
+                    String baseStyle = 
+                        "-fx-font-family: 'DM Mono', monospace;" +
+                        "-fx-font-size: 13px; -fx-font-weight: bold;" +
+                        "-fx-text-fill: " + color + ";" +
+                        "-fx-background-color: #121212;" + // Dark Mode!
+                        "-fx-border-color: #f0a030; -fx-border-width: 2;" +
+                        "-fx-border-radius: 6; -fx-background-radius: 6;" +
+                        "-fx-min-width: 44px; -fx-min-height: 60px;";
+                        
+                    if (isPlayable) {
+                        // It is a Playable Pair! Make BOTH cards glow uniformly and clickable.
+                        btn.setStyle(baseStyle + "-fx-cursor: hand; -fx-effect: dropshadow(three-pass-box, #f0a030, 10, 0.5, 0, 0);");
+                        
+                        // Only send the network message ONCE per trap type, regardless of which of the two cards they click
                         final String trapCapture = trap;
-                        btn.setOnMousePressed(e -> { if (onTrapPlayed != null) onTrapPlayed.accept(trapCapture); });
-                        btn.setOnMouseEntered(e -> btn.setOpacity(0.75));
+                        btn.setOnMousePressed(e -> { 
+                            if (onTrapPlayed != null && !wiredTraps.contains(trapCapture)) {
+                                wiredTraps.add(trapCapture);
+                                onTrapPlayed.accept(trapCapture); 
+                            }
+                        });
+                        btn.setOnMouseEntered(e -> btn.setOpacity(0.8));
                         btn.setOnMouseExited(e -> btn.setOpacity(1.0));
-                        cardRow.getChildren().add(btn);
                     } else {
-                        // second card of pair — faded
-                        Button btn = new Button(display);
-                        btn.setStyle(
-                            "-fx-font-family: 'DM Mono', monospace;" +
-                            "-fx-font-size: 13px; -fx-font-weight: bold;" +
-                            "-fx-text-fill: " + (isRed ? "#cc3333" : "#1a1a2e") + ";" +
-                            "-fx-background-color: #fdf6e3; -fx-border-color: #f0a030;" +
-                            "-fx-border-width: 2; -fx-border-radius: 6; -fx-background-radius: 6;" +
-                            "-fx-min-width: 44px; -fx-min-height: 60px; -fx-opacity: 0.5; -fx-cursor: default;"
-                        );
-                        cardRow.getChildren().add(btn);
+                        // It is a single Trap Card. Just Dark Mode, no glow.
+                        btn.setStyle(baseStyle + "-fx-cursor: default;");
                     }
                 } else {
-                    // normal face-up card
-                    Button btn = new Button(display);
+                    // Normal face-up card
                     btn.setStyle(
                         "-fx-font-family: 'DM Mono', monospace;" +
                         "-fx-font-size: 13px; -fx-font-weight: bold;" +
@@ -739,8 +725,8 @@ public class MultiplayerGameView extends StackPane {
                         "-fx-border-width: 1; -fx-border-radius: 6; -fx-background-radius: 6;" +
                         "-fx-min-width: 44px; -fx-min-height: 60px; -fx-cursor: default;"
                     );
-                    cardRow.getChildren().add(btn);
                 }
+                cardRow.getChildren().add(btn);
             }
         }
 
