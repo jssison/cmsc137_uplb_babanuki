@@ -1,10 +1,12 @@
 package application;
 
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 import network.GameClient;
 import network.GameServer;
+import network.Message;
 import ui.GameView;
 import ui.Instructions;
 import ui.MainMenu;
@@ -14,6 +16,10 @@ import ui.NetworkLobby;
 public class Main extends Application {
     private Stage window;
     private Scene mainScene;
+    private GameClient client;
+    private GameServer server;
+    private String currentPlayerName;
+    private NetworkLobby currentLobby;
 
     @Override
     public void start(Stage primaryStage) {
@@ -43,17 +49,27 @@ public class Main extends Application {
         mainScene.setRoot(game);
     }
 
+    
     private void showNetworkLobby(String playerName) {
-        NetworkLobby lobby = new NetworkLobby(playerName,
+    	currentPlayerName = playerName;
+    	
+        currentLobby = new NetworkLobby(playerName,
             (server, client) -> startMultiplayerView(client, server),
             (client)         -> startMultiplayerView(client, null),
             this::showMainMenu
         );
-        mainScene.setRoot(lobby);
+        mainScene.setRoot(currentLobby);
     }
 
+    private void returnToLobby(GameClient client, GameServer server) {
+        if (server != null) server.resetToLobby();
+        else client.send(Message.returnToLobby());
+    }
+    
     private void startMultiplayerView(GameClient client, GameServer server) {
-        MultiplayerGameView mpView = new MultiplayerGameView(client, server, this::showMainMenu);
+        MultiplayerGameView mpView = new MultiplayerGameView(client, server, this::showMainMenu, () -> {
+        	returnToLobby(client, server);
+        });
         mainScene.setRoot(mpView);
 
         // rewire client callbacks from the lobby stubs to the real game view
@@ -74,6 +90,12 @@ public class Main extends Application {
             }
             @Override public void onAnimDiscard(int slot, String[] cards) {
                 mpView.onAnimDiscard(slot, cards);
+            }
+            @Override public void onReturnToLobby() {
+            	Platform.runLater(() -> {
+            		mainScene.setRoot(currentLobby);
+            		currentLobby.reEnterWaitingRoom();
+            	});
             }
             private void showMainMenu() { Main.this.showMainMenu(); }
         });

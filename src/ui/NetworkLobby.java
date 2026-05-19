@@ -18,6 +18,9 @@ public class NetworkLobby extends StackPane {
     private final BiConsumer<GameServer, GameClient> onHostReady;
     private final Consumer<GameClient> onJoinReady;
     private final Runnable onCancel;
+    private GameClient activeClient;
+    private GameServer activeServer;
+    private boolean activeIsHost;
 
     // ── UI Stages ─────────────────────────────────────────────────────────────
     private final VBox configStage = new VBox(30);
@@ -63,6 +66,7 @@ public class NetworkLobby extends StackPane {
     // ══════════════════════════════════════════════════════════════════════════
 
     private void buildConfigStage() {
+    	configLogArea.clear();
         configStage.setAlignment(Pos.CENTER);
         configStage.setMaxWidth(400);
 
@@ -190,7 +194,11 @@ public class NetworkLobby extends StackPane {
         BorderPane.setMargin(bottomSection, new Insets(40, 0, 0, 0));
     }
 
-    private void enterWaitingRoom(GameClient cli, GameServer srv, boolean isHost) {
+    public void enterWaitingRoom(GameClient cli, GameServer srv, boolean isHost) {
+    	this.activeClient = cli;
+    	this.activeServer = srv;
+    	this.activeIsHost = isHost;
+    	
         // Swap UI visibility
         configStage.setVisible(false);
         waitingRoomStage.setVisible(true);
@@ -257,6 +265,14 @@ public class NetworkLobby extends StackPane {
                 }); 
             }
         });
+    }
+    
+    public void reEnterWaitingRoom() {
+    	Platform.runLater(() -> {
+    		enterWaitingRoom(activeClient, activeServer, activeIsHost);
+    		if (activeServer != null) activeServer.broadcastLobby();
+    		else activeClient.send(Message.requestLobby());
+    	});
     }
 
     private void updatePlayerCards(String[] slots) {

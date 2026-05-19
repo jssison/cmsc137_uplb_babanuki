@@ -69,6 +69,7 @@ public class GameClient {
         default void onAnimSteal(int stealerSlot, int targetSlot, int cardIndex) {}
         default void onAnimDiscard(int slot, String[] cards) {}
         default void onLobbyUpdate(String[] slots) {}
+        default void onReturnToLobby() {}
     }
 
     // ── Fields ────────────────────────────────────────────────────────────────
@@ -239,6 +240,9 @@ public class GameClient {
                         String payload = msg.part(0);
                         String[] slots = payload.isEmpty() ? new String[0] : payload.split(",", -1);
                         if (callbacks != null) callbacks.onLobbyUpdate(slots);
+                    }
+                    case Message.RETURN_LOBBY -> {
+                    	if (callbacks != null) callbacks.onReturnToLobby();
                     }
                     // ----------------------------------------------
 

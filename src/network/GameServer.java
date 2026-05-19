@@ -274,6 +274,17 @@ public class GameServer {
             }
         }, "DisconnectTimer-" + handler.slot).start();
     }
+    
+    public void resetToLobby() {
+    	if (gameLoop != null) gameLoop.stop();
+    	if (gameThread != null) gameThread.interrupt();
+    	gameLoop = null;
+    	gameThread = null;
+    	gameState = null;
+    	players.clear();
+    	broadcast(Message.returnToLobby());
+    	broadcastLobby();
+    }
 
     // ── Internal: handle incoming messages from a client ─────────────────────
 
@@ -295,6 +306,8 @@ public class GameServer {
             case Message.TRAP_PLAY -> handleTrapPlay(sender, msg);
             case Message.CHAT      -> broadcast(Message.chat(sender.playerName, msg.part(0)));
             case Message.SHUFFLE   -> handleShuffle(sender);
+            case Message.RETURN_LOBBY -> { if(sender.slot == 0) resetToLobby(); }
+            case Message.REQUEST_LOBBY -> broadcastLobby();
             default -> sender.send(Message.error("Unknown message type: " + msg.type));
         }
     }

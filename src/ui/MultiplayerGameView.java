@@ -28,7 +28,8 @@ public class MultiplayerGameView extends StackPane {
 
     private final GameClient client;
     private final GameServer server; // null if joiner
-    private final Runnable   onReturnToMenu;
+    private final Runnable onReturnToMenu;
+    private final Runnable onReturnToLobby;
 
     // layers (same structure as GameView)
     private final BorderPane tableLayer  = new BorderPane();
@@ -65,10 +66,11 @@ public class MultiplayerGameView extends StackPane {
         "cow.png","pig.png","bear.png","cat.png","dog.png"
     };
 
-    public MultiplayerGameView(GameClient client, GameServer server, Runnable onReturnToMenu) {
+    public MultiplayerGameView(GameClient client, GameServer server, Runnable onReturnToMenu, Runnable onReturnToLobby) {
         this.client         = client;
         this.server         = server;
         this.onReturnToMenu = onReturnToMenu;
+        this.onReturnToLobby = onReturnToLobby;
         this.mySlot         = client.mySlot;
         buildLayout();
         
@@ -476,13 +478,20 @@ public class MultiplayerGameView extends StackPane {
             box.getChildren().add(row);
         }
 
-        Button menuBtn = makeButton("Back to Menu", "#2e6644", "#e8c87a");
-        menuBtn.setOnAction(e -> {
-            client.disconnect();
-            if (server != null) server.stop();
-            onReturnToMenu.run();
+//        Button menuBtn = makeButton("Back to Menu", "#2e6644", "#e8c87a");
+//        menuBtn.setOnAction(e -> {
+//            client.disconnect();
+//            if (server != null) server.stop();
+//            onReturnToMenu.run();
+//        });
+//        box.getChildren().add(menuBtn);
+        
+        // Return to lobby instead of return to menu
+        Button lobbyBtn = makeButton("Back to Lobby", "#2e6644", "#e8c87a");
+        lobbyBtn.setOnAction(e -> {
+        	onReturnToLobby.run();
         });
-        box.getChildren().add(menuBtn);
+        box.getChildren().add(lobbyBtn);
 
         overlayPane.getChildren().setAll(box);
         showOverlay();

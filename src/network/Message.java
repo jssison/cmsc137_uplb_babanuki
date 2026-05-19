@@ -49,6 +49,12 @@ public class Message {
 
     /** Server → Client: something went wrong */
     public static final String ERROR        = "ERROR";
+    
+    /* Server -> All: returns everyone to the lobby*/
+    public static final String RETURN_LOBBY = "RETURN_LOBBY";
+    
+    /* Server -> All: for non-hostile clients*/
+    public static final String REQUEST_LOBBY = "REQUEST_LOBBY";
 
     // ── Log event broadcast ──────────────────────────────────────────────────
 
@@ -177,6 +183,9 @@ public class Message {
     public static String startGame() { return START_GAME; }
     
     public static String shuffle() { return SHUFFLE; }
+    
+    public static String returnToLobby() { return RETURN_LOBBY + "|"; }
+    public static String requestLobby() { return REQUEST_LOBBY + "|"; }
 
     // ── Convenience getters ───────────────────────────────────────────────────
 
