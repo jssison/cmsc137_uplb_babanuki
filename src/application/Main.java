@@ -81,7 +81,14 @@ public class Main extends Application {
             @Override public void onHand(String[] entries)           { mpView.onHand(entries); }
             @Override public void onTrapPrompt(String t, String[] opts) { mpView.onTrapPrompt(t, opts); }
             @Override public void onGameOver(String[] names)       { mpView.onGameOver(names); }
-            @Override public void onChat(String s, String txt)     { /* future */ }
+            @Override public void onChat(String slotStr, String txt) {
+                Platform.runLater(() -> {
+                    try {
+                        int slot = Integer.parseInt(slotStr);
+                        mpView.showBubble(slot, txt);
+                    } catch (NumberFormatException ignored) {}
+                });
+            }
             @Override public void onDisconnect(String reason)      {
                 javafx.application.Platform.runLater(this::showMainMenu);
             }

@@ -304,7 +304,9 @@ public class GameServer {
             case Message.DRAW      -> handleDraw(sender, msg);
             case Message.TRAP_CHOICE -> handleTrapChoice(sender, msg);
             case Message.TRAP_PLAY -> handleTrapPlay(sender, msg);
-            case Message.CHAT      -> broadcast(Message.chat(sender.playerName, msg.part(0)));
+            case Message.CHAT -> {
+                broadcast(Message.chat(String.valueOf(sender.slot), msg.part(1)));
+            }
             case Message.SHUFFLE   -> handleShuffle(sender);
             case Message.RETURN_LOBBY -> { if(sender.slot == 0) resetToLobby(); }
             case Message.REQUEST_LOBBY -> broadcastLobby();

@@ -244,6 +244,9 @@ public class GameClient {
                     case Message.RETURN_LOBBY -> {
                     	if (callbacks != null) callbacks.onReturnToLobby();
                     }
+                    case Message.CHAT -> {
+                        if (callbacks != null) callbacks.onChat(msg.part(0), msg.part(1));
+                    }
                     // ----------------------------------------------
 
                     

@@ -6,10 +6,12 @@ import javafx.geometry.Pos;
 import javafx.scene.Group;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.shape.Circle;
+import javafx.scene.input.KeyCode;
 import model.Card;
 import model.Player;
 import network.GameClient;
@@ -18,8 +20,16 @@ import network.GameServer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
+import javafx.util.Duration;
+
+import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
+import javafx.animation.Timeline;
+
 
 // multiplayer game view — mirrors singleplayer layout as closely as possible.
 // the server owns all logic; this view renders state + hand from server messages
@@ -60,11 +70,19 @@ public class MultiplayerGameView extends StackPane {
     private final List<MpPlate>     playerPlates = new ArrayList<>();
 
     private int mySlot = -1;
+    
+    // for chats
+    private final Map<Integer, Label> speechBubbles = new HashMap<>();
+    private final Map<Integer, Timeline> bubbleTimers = new HashMap<>();
+    private final TextField chatInput = new TextField();
 
     private static final String[] ANIMAL_ICONS = {
         "monkey.png","dragon.png","rat.png","rabbit.png",
         "cow.png","pig.png","bear.png","cat.png","dog.png"
     };
+    private static final String[] EMOTE_FILES = {
+    	    "laugh.png", "cry.png", "angry.png", "fire.png", "skull.png", "eyes.png"
+    	};
 
     public MultiplayerGameView(GameClient client, GameServer server, Runnable onReturnToMenu, Runnable onReturnToLobby) {
         this.client         = client;
@@ -143,6 +161,7 @@ public class MultiplayerGameView extends StackPane {
         tableLayer.setLeft(leftSeat);
         tableLayer.setRight(rightSeat);
         tableLayer.setBottom(bottomArea);
+        
         BorderPane.setAlignment(logBox, Pos.BOTTOM_CENTER);
         BorderPane.setMargin(logBox, new Insets(0, 0, 10, 0));
         tableLayer.setCenter(logBox);
@@ -156,8 +175,34 @@ public class MultiplayerGameView extends StackPane {
         overlayPane.setVisible(false);
         overlayPane.setStyle("-fx-background-color: rgba(0,0,0,0.72);");
         animLayer.setMouseTransparent(true);
+        
+        HBox chatBar = buildChatBar();
+        AnchorPane.setBottomAnchor(chatBar, 0.0);
+        AnchorPane.setLeftAnchor(chatBar, 0.0);
+        AnchorPane.setRightAnchor(chatBar, 0.0);
+        hudLayer.getChildren().add(chatBar);
+        bottomArea.setPadding(new Insets(4, 16, 50, 16)); 
 
         getChildren().addAll(tableLayer, hudLayer, animLayer, overlayPane);
+    }
+    
+    // build speech bubble for in-game chats
+    private Label buildSpeechBubble() {
+        Label bubble = new Label();
+        bubble.setVisible(false);
+        bubble.setWrapText(false);
+        bubble.setMaxWidth(Region.USE_PREF_SIZE);
+        bubble.setMinWidth(Region.USE_PREF_SIZE);
+        bubble.setPrefWidth(Region.USE_COMPUTED_SIZE);
+        bubble.setStyle("""
+            -fx-background-color: white;
+            -fx-text-fill: #122a1e;
+            -fx-padding: 6 10 6 10;
+            -fx-background-radius: 12;
+            -fx-font-family: 'DM Sans', sans-serif;
+            -fx-font-size: 13px;
+        """);
+        return bubble;
     }
 
     // ── callbacks from Main (called after setCallbacks) ───────────────────────
@@ -246,6 +291,7 @@ public class MultiplayerGameView extends StackPane {
         bottomArea.getChildren().add(turnLabel);
         handViews.clear();
         playerPlates.clear();
+        speechBubbles.clear();
 
         for (int i = 0; i < playerNames.length; i++) {
             String name = playerNames[i];
@@ -260,12 +306,14 @@ public class MultiplayerGameView extends StackPane {
             // build a lightweight proxy Player so we can reuse MpHandView / MpPlate
             MpPlate   plate = new MpPlate(i, icon);
             MpHandView view = new MpHandView(i, !isMe); // reveal=false for opponents
+            Label bubble = buildSpeechBubble();
             handViews.add(view);
             playerPlates.add(plate);
+            speechBubbles.put(i, bubble);
 
             if (isMe) {
                 bottomArea.getChildren().add(0, view);
-                bottomArea.getChildren().add(1, plate);
+                bottomArea.getChildren().add(1, plateWithBubble(plate, bubble));
             } else {
                 int relative = (i - mySlot + playerNames.length) % playerNames.length;
                 switch (relative) {
@@ -273,19 +321,19 @@ public class MultiplayerGameView extends StackPane {
                         view.setRotate(90);
                         view.setMaxWidth(300);
                         leftSeat.setSpacing(12);
-                        leftSeat.getChildren().addAll(plate, new Group(view));
+                        leftSeat.getChildren().addAll(plateWithBubble(plate, bubble), new Group(view));
                     }
                     case 2 -> {
                         topSeat.setSpacing(12);
-                        topSeat.getChildren().addAll(plate, new Group(view));
+                        topSeat.getChildren().addAll(plateWithBubble(plate, bubble), new Group(view));
                     }
                     case 3 -> {
                         view.setRotate(-90);
                         view.setMaxWidth(300);
                         rightSeat.setSpacing(12);
-                        rightSeat.getChildren().addAll(plate, new Group(view));
+                        rightSeat.getChildren().addAll(plateWithBubble(plate, bubble), new Group(view));
                     }
-                    default -> topSeat.getChildren().addAll(plate, new Group(view));
+                    default -> topSeat.getChildren().addAll(plateWithBubble(plate, bubble), new Group(view));
                 }
             }
         }
@@ -496,6 +544,112 @@ public class MultiplayerGameView extends StackPane {
         overlayPane.getChildren().setAll(box);
         showOverlay();
     }
+    
+    public void showBubble(int slot, String text) {
+        Platform.runLater(() -> {
+            Label bubble = speechBubbles.get(slot);
+            if (bubble == null) return;
+
+            Timeline existing = bubbleTimers.get(slot);
+            if (existing != null) existing.stop();
+
+            if (text.startsWith("emote:")) {
+                String file = text.substring(6);
+                try {
+                    ImageView iv = new ImageView(new Image(
+                        getClass().getResourceAsStream("/assets/emojis/" + file)));
+                    iv.setFitWidth(32);
+                    iv.setFitHeight(32);
+                    bubble.setText("");
+                    bubble.setGraphic(iv);
+                } catch (Exception ignored) {
+                    bubble.setText("?");
+                    bubble.setGraphic(null);
+                }
+            } else {
+                bubble.setText(text);
+                bubble.setGraphic(null);
+            }
+
+            bubble.setOpacity(1.0);
+            bubble.setVisible(true);
+
+            Timeline fade = new Timeline(
+                new KeyFrame(Duration.seconds(3),   new KeyValue(bubble.opacityProperty(), 1.0)),
+                new KeyFrame(Duration.seconds(3.8), new KeyValue(bubble.opacityProperty(), 0.0))
+            );
+            fade.setOnFinished(e -> bubble.setVisible(false));
+            fade.play();
+            bubbleTimers.put(slot, fade);
+        });
+    }
+    
+    private HBox buildChatBar() {
+        chatInput.setPromptText("Say something... (Enter to send)");
+        chatInput.setStyle(
+            "-fx-background-color: #0d1f16;" +
+            "-fx-text-fill: #fdf6e3;" +
+            "-fx-prompt-text-fill: #4a7a5a;" +
+            "-fx-border-color: #2e6644;" +
+            "-fx-padding: 6 10;" +
+            "-fx-font-size: 13px;"
+        );
+        HBox.setHgrow(chatInput, Priority.ALWAYS);
+        chatInput.setOnKeyPressed(e -> {
+            if (e.getCode() == KeyCode.ENTER) sendChat();
+        });
+
+        // common emotes
+        HBox emoteRow = new HBox(4);
+        emoteRow.setAlignment(Pos.CENTER);
+        for (int i = 0; i < EMOTE_FILES.length; i++) {
+            final String file = EMOTE_FILES[i];
+
+            ImageView img = new ImageView();
+            try {
+                img.setImage(new Image(getClass().getResourceAsStream("/assets/emojis/" + file)));
+            } catch (Exception ignored) {}
+            img.setFitWidth(24);
+            img.setFitHeight(24);
+            img.setPreserveRatio(true);
+            img.setSmooth(true);
+
+            StackPane btn = new StackPane(img);
+            btn.setPrefSize(36, 36);
+            btn.setStyle(
+                "-fx-background-color: #1a3a2a;" +
+                "-fx-border-color: #2e6644;" +
+                "-fx-border-radius: 6;" +
+                "-fx-background-radius: 6;" +
+                "-fx-cursor: hand;"
+            );
+            btn.setOnMouseEntered(e -> btn.setOpacity(0.7));
+            btn.setOnMouseExited(e -> btn.setOpacity(1.0));
+            btn.setOnMouseClicked(e -> {
+                client.sendChat("emote:" + file);
+                showBubble(mySlot, "emote:" + file);
+            });
+            emoteRow.getChildren().add(btn);
+        }
+
+        HBox bar = new HBox(10, chatInput, emoteRow);
+        bar.setPadding(new Insets(8, 16, 8, 16));
+        bar.setAlignment(Pos.CENTER_LEFT);
+        bar.setStyle(
+            "-fx-background-color: #0d1f16;" +
+            "-fx-border-color: #2e6644;" +
+            "-fx-border-width: 1 0 0 0;"
+        );
+        return bar;
+    }
+    
+    private void sendChat() {
+        String text = chatInput.getText().trim();
+        if (text.isEmpty()) return;
+        client.sendChat(text);
+        showBubble(mySlot, text);
+        chatInput.clear();
+    }
 
     // ── helpers ───────────────────────────────────────────────────────────────
 
@@ -538,6 +692,16 @@ public class MultiplayerGameView extends StackPane {
         btn.setOnMouseEntered(e -> btn.setOpacity(0.75));
         btn.setOnMouseExited(e -> btn.setOpacity(1.0));
         return btn;
+    }
+    
+    private StackPane plateWithBubble(MpPlate plate, Label bubble) {
+        StackPane sp = new StackPane(plate, bubble);
+        StackPane.setAlignment(bubble, Pos.TOP_CENTER);
+        bubble.setTranslateY(-30);
+        bubble.setMouseTransparent(true);
+        StackPane.setAlignment(bubble, Pos.TOP_CENTER);  
+        bubble.setMaxWidth(Region.USE_PREF_SIZE);
+        return sp;
     }
 
     // ── inner: MpPlate (mirrors PlayerPlate in GameView) ─────────────────────
