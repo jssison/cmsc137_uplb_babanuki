@@ -4,96 +4,91 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.Spinner;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class MainMenu extends VBox {
 
-	public MainMenu(Consumer<String> onSinglePlayerStart, Consumer<String> onMultiPlayerStart) {
-		this.setAlignment(Pos.CENTER);
-		this.setSpacing(25);
-		this.setStyle("-fx-background-color: #122a1e;");
+    private final VBox mainButtons = new VBox(15);
+    private final VBox spConfigBox = new VBox(15);
 
-		// 1. Title
-		Label title = new Label("UPLB Babanuki");
-		title.setStyle(
-			"-fx-font-family: 'Playfair Display', serif;" +
-			"-fx-font-size: 54px;" +
-			"-fx-font-weight: bold;" +
-			"-fx-text-fill: #e8c87a;" +
-			"-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.6), 10, 0, 0, 5);"
-		);
+    // THE FIX 1: Added 'Runnable onShowInstructions' to the constructor
+    public MainMenu(BiConsumer<String, Integer> onSinglePlayerStart, Consumer<String> onMultiPlayerStart, Runnable onShowInstructions) {
+        this.setAlignment(Pos.CENTER);
+        this.setSpacing(30);
+        this.setStyle("-fx-background-color: #122a1e;");
 
-		// 2. Name Input Area
-		VBox inputArea = new VBox(10);
-		inputArea.setAlignment(Pos.CENTER);
-		inputArea.setMaxWidth(300);
+        // ── Title ─────────────────────────────────────────────────────────────
+        Label title = new Label("UPLB Babanuki");
+        title.setStyle("-fx-font-family: 'Playfair Display', serif; -fx-font-size: 64px; -fx-font-weight: bold; -fx-text-fill: #e8c87a; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.8), 15, 0, 0, 8);");
+        
+        // THE FIX 2: Updated the subtitle to reflect the real-time FFA nature!
+        Label subtitle = new Label("A fast-paced twist on the classic card game");
+        subtitle.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 18px; -fx-text-fill: #8ca898; -fx-font-style: italic;");
+        
+        VBox titleBox = new VBox(5, title, subtitle);
+        titleBox.setAlignment(Pos.CENTER);
+        VBox.setMargin(titleBox, new Insets(0, 0, 30, 0));
 
-		Label nameLabel = new Label("ENTER YOUR NAME:");
-		nameLabel.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #8ca898;");
+        // ── Main Buttons ──────────────────────────────────────────────────────
+        mainButtons.setAlignment(Pos.CENTER);
+        Button singlePlayerBtn = makeButton("Singleplayer", "#2e6644", "#e8c87a");
+        singlePlayerBtn.setOnAction(e -> {
+            mainButtons.setVisible(false); mainButtons.setManaged(false);
+            spConfigBox.setVisible(true);  spConfigBox.setManaged(true);
+        });
 
-		TextField nameInput = new TextField();
-		nameInput.setPromptText("E.g., Oble");
-		nameInput.setStyle(
-			"-fx-font-family: 'DM Sans', sans-serif;" +
-			"-fx-font-size: 16px;" +
-			"-fx-background-color: #1a3a2a;" +
-			"-fx-text-fill: #fdf6e3;" +
-			"-fx-border-color: #2e6644;" +
-			"-fx-border-width: 2;" +
-			"-fx-border-radius: 6;" +
-			"-fx-background-radius: 6;" +
-			"-fx-padding: 10;"
-		);
-		
-		inputArea.getChildren().addAll(nameLabel, nameInput);
+        Button multiPlayerBtn = makeButton("Multiplayer Lobby", "#1c4d8c", "#e8c87a");
+        multiPlayerBtn.setOnAction(e -> onMultiPlayerStart.accept("")); 
 
-		// 3. Buttons
-		VBox buttonArea = new VBox(15);
-		buttonArea.setAlignment(Pos.CENTER);
+        // THE FIX 3: Created the Instructions Button with a sleek bronze background
+        Button instructionsBtn = makeButton("How to Play", "#8c601c", "#e8c87a");
+        instructionsBtn.setOnAction(e -> onShowInstructions.run());
 
-		Button singlePlayerBtn = makeButton("Start Singleplayer", "#2e6644", "#e8c87a");
-		singlePlayerBtn.setPrefWidth(250);
-		singlePlayerBtn.setOnAction(e -> {
-			String name = nameInput.getText().trim();
-			if (name.isEmpty()) name = "Player 1"; // Default name fallback
-			onSinglePlayerStart.accept(name);
-		});
+        // Added all three buttons to the layout
+        mainButtons.getChildren().addAll(singlePlayerBtn, multiPlayerBtn, instructionsBtn);
 
-		// Same func as single player button for now
-		Button multiPlayerBtn = makeButton("Start Multiplayer", "#2e6644", "#e8c87a");
-		multiPlayerBtn.setPrefWidth(250);
-		multiPlayerBtn.setOnAction(e -> {
-			String name = nameInput.getText().trim();
-			if (name.isEmpty()) name = "Player 1";
-			onMultiPlayerStart.accept(name);
-		});
+        // ── Singleplayer Config (Hidden by default) ───────────────────────────
+        spConfigBox.setAlignment(Pos.CENTER);
+        spConfigBox.setVisible(false); spConfigBox.setManaged(false);
 
-		buttonArea.getChildren().addAll(singlePlayerBtn, multiPlayerBtn);
+        TextField spNameInput = new TextField();
+        spNameInput.setPromptText("Enter your name");
+        spNameInput.setMaxWidth(260);
+        spNameInput.setStyle("-fx-background-color: #0d1f16; -fx-text-fill: #fdf6e3; -fx-border-color: #2e6644; -fx-padding: 10;");
 
-		// Add everything to the screen
-		this.getChildren().addAll(title, inputArea, buttonArea);
-	}
+        Spinner<Integer> cpuSpinner = new Spinner<>(1, 3, 3);
+        cpuSpinner.setStyle("-fx-base: #0d1f16; -fx-control-inner-background: #0d1f16; -fx-text-fill: #fdf6e3;");
+        HBox cpuRow = new HBox(10, new Label("Bots:"), cpuSpinner);
+        cpuRow.setAlignment(Pos.CENTER);
 
-	// Helper for clean buttons
-	private Button makeButton(String text, String bg, String fg) {
-		Button btn = new Button(text);
-		btn.setStyle(
-			"-fx-font-family: 'DM Sans', sans-serif;" +
-			"-fx-font-size: 16px;" +
-			"-fx-font-weight: bold;" +
-			"-fx-text-fill: " + fg + ";" +
-			"-fx-background-color: " + bg + ";" +
-			"-fx-border-color: " + fg + "44;" +
-			"-fx-border-width: 1;" +
-			"-fx-border-radius: 6;" +
-			"-fx-background-radius: 6;" +
-			"-fx-padding: 12 24 12 24;" +
-			"-fx-cursor: hand;"
-		);
-		btn.setOnMouseEntered(e -> btn.setOpacity(0.8));
-		btn.setOnMouseExited(e -> btn.setOpacity(1.0));
-		return btn;
-	}
+        Button startSpBtn = makeButton("Start Game", "#2e6644", "#e8c87a");
+        startSpBtn.setOnAction(e -> {
+            String n = spNameInput.getText().trim();
+            onSinglePlayerStart.accept(n.isEmpty() ? "Player 1" : n, cpuSpinner.getValue());
+        });
+        
+        Button backBtn = makeButton("Back", "#4a2e2e", "#e05555");
+        backBtn.setOnAction(e -> {
+            spConfigBox.setVisible(false); spConfigBox.setManaged(false);
+            mainButtons.setVisible(true);  mainButtons.setManaged(true);
+        });
+        spConfigBox.getChildren().addAll(spNameInput, cpuRow, startSpBtn, backBtn);
+
+        this.getChildren().addAll(titleBox, mainButtons, spConfigBox);
+    }
+
+    private Button makeButton(String text, String bg, String fg) {
+        Button btn = new Button(text);
+        btn.setPrefWidth(260);
+        btn.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: " + fg + "; -fx-background-color: " + bg + "; -fx-border-color: " + fg + "44; -fx-border-width: 2; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 12 24 12 24; -fx-cursor: hand;");
+        btn.setOnMouseEntered(e -> btn.setOpacity(0.85));
+        btn.setOnMouseExited(e -> btn.setOpacity(1.0));
+        return btn;
+    }
 }

@@ -1,6 +1,7 @@
 package model;
 
 import java.util.ArrayList;
+import model.Card;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
@@ -11,53 +12,45 @@ public class GameState {
 	private final List<Player> players;
 	private GameStatus status = GameStatus.PLAYING;
 	
-	//first player to have an empty hand
-	private Player winner = null;
-	//player holding the Queen
-	private Player loser = null;
-	
-	//wont allow condition checks until game loop starts the game
+	// Won't allow condition checks until game loop starts the game
 	private boolean started = false;
 	
-	//UI stuff (listeners)
+	// UI stuff (listeners)
 	private final List<Consumer<String>> logListeners = new CopyOnWriteArrayList<>();
 	private final List<Runnable> stateChangeListeners = new CopyOnWriteArrayList<>();
 
+	// Ordered finish list: index 0 = 1st place, last index = Babanuki loser
 	private final List<Player> leaderboard = new ArrayList<>();
-	//constructor
+
+	// Constructor
 	public GameState(List<Player> players) {
 		this.players = new ArrayList<>(players);
 		setupDrawRotation();
 	}
 	
-	//starts the game once setup is done
+	// Starts the game once setup is done
 	public void markStarted() {
 		this.started = true;
 	}
 	
-	//Clockwise rotation per player
+	// Clockwise rotation per player
 	private void setupDrawRotation() {
 		int n = players.size();
-		
-		for (int i=0; i < n; i++) {
+		for (int i = 0; i < n; i++) {
 			List<Player> rotation = new ArrayList<>();
-			
-			for (int j=1; j < n; j++) {
-				rotation.add(players.get((i+j) % n));
+			for (int j = 1; j < n; j++) {
+				rotation.add(players.get((i + j) % n));
 			}
 			players.get(i).setDrawRotation(rotation);
 		}
 	}
 	
-	//win or lose detection
+	// Win / lose detection
 	public synchronized void checkEndConditions() {
-		// does nothing unless game has started
-		if (!started) { return; }
-		
-		// stop reevaluating when already finished
-		if (status == GameStatus.FINISHED) { return; }
-		
-		// add players in order to leaderboard
+		if (!started) return;
+		if (status == GameStatus.FINISHED) return;
+
+		// Add players to leaderboard
 		for (Player p : players) {
 			if (p.getIsOut() && !leaderboard.contains(p)) {
 				leaderboard.add(p);
@@ -66,40 +59,54 @@ public class GameState {
 		}
 		
 		List<Player> stillInGame = getActivePlayers();
+		boolean isGameOver = false;
 		
-		// case 1: only one player still has cards
-		if (stillInGame.size() == 1) {
-			Player loser = stillInGame.get(0);
-			if (!leaderboard.contains(loser)) {
-				leaderboard.add(loser);
-				log(loser.getName() + " is holding the Queen (Babanuki!)");
-			}
-			status = GameStatus.FINISHED;
-			return;
-		}
-		
-		// case 2: all players are out (safety net)
-		if (stillInGame.isEmpty()) {
-			status = GameStatus.FINISHED;
-			return;
-		}
-		
-		// case 3: stuck with no targets (your excellent safety net for sequential mode)
-		for (Player p : stillInGame) {
-			if (p.getNextDrawTarget() == null) {
-				if (!leaderboard.contains(p)) {
-					leaderboard.add(p);
-					log(p.getName() + " is holding the Queen");
+		// Check if game is over
+		if (stillInGame.size() <= 1) {
+			isGameOver = true;
+		} else {
+			for (Player p : stillInGame) {
+				if (p.getNextDrawTarget() == null) {
+					isGameOver = true;
+					break;
 				}
-				status = GameStatus.FINISHED;
-				return;
 			}
+		}
+		
+		// Only flush traps if game over
+		if (isGameOver) {
+			// Flush unplayed trap pairs so players holding them are marked safe
+			for (Player p : stillInGame) {
+				List<Card> flushed = p.discardAllPairs();
+				if (!flushed.isEmpty()) {
+					log(p.getName() + " auto-discarded " + (flushed.size()/2) + " unplayed trap pair(s) at end of game");
+				}
+			}
+			
+			// Re-evaluate who is left holding the Queen
+			stillInGame = getActivePlayers();
+			
+			if (stillInGame.size() == 1) {
+				Player loser = stillInGame.get(0);
+				if (!leaderboard.contains(loser)) {
+					leaderboard.add(loser);
+					log(loser.getName() + " is holding the Queen (Babanuki!)");
+				}
+			} else {
+				// Safety net for edge cases
+				for (Player p : stillInGame) {
+					if (!leaderboard.contains(p)) {
+						leaderboard.add(p);
+						log(p.getName() + " is holding the Queen");
+					}
+				}
+			}
+			status = GameStatus.FINISHED;
 		}
 	}
 
-	// Helper method to make the game logs look professional
 	private String getRankString(int rank) {
-		return switch(rank) {
+		return switch (rank) {
 			case 1 -> "1st";
 			case 2 -> "2nd";
 			case 3 -> "3rd";
@@ -109,41 +116,28 @@ public class GameState {
 	
 	public List<Player> getActivePlayers() {
 		List<Player> active = new ArrayList<>();
-		
 		for (Player p : players) {
-			//add player to active players if not out and has cards
-			if (!p.getIsOut() && p.handSize() > 0) { active.add(p); }
+			if (!p.getIsOut() && p.handSize() > 0) active.add(p);
 		}
-		
 		return active;
 	}
 	
-	
-	public List<Player> getLeaderboard(){
-		return leaderboard;
-	}
-	//listeners
-	public void addLogListener(Consumer<String> listener) {
-		logListeners.add(listener);
-	}
-	
-	public void addStateChangeListener(Runnable listener) {
-		stateChangeListeners.add(listener);
-	}
+	public List<Player> getLeaderboard() { return leaderboard; }
+
+	// Listeners
+	public void addLogListener(Consumer<String> listener) { logListeners.add(listener); }
+	public void addStateChangeListener(Runnable listener) { stateChangeListeners.add(listener); }
 	
 	public void log(String message) {
-		for (Consumer<String> l : logListeners) { l.accept(message); }
+		for (Consumer<String> l : logListeners) l.accept(message);
 	}
 	
 	public void notifyStateChanged() {
-		for (Runnable r : stateChangeListeners) { r.run(); }
+		for (Runnable r : stateChangeListeners) r.run();
 	}
 	
-	
-	//getters
-	public boolean isFinished() { return this.status == GameStatus.FINISHED; }
-	public List<Player> getPlayers() { return this.players; }
-	public GameStatus getStatus() { return this.status; }
-	public Player getWinner() { return this.winner; }
-	public Player getLoser() { return this.loser; }
+	// Getters
+	public boolean isFinished()        { return this.status == GameStatus.FINISHED; }
+	public List<Player> getPlayers()   { return this.players; }
+	public GameStatus getStatus()      { return this.status; }
 }

@@ -72,11 +72,13 @@ public class GameView extends StackPane {
 	};
 	
 	private String humanPlayerName = "You";
+	private int cpuCount = 3; // configurable
 	private Runnable onReturnToMenu;
 	
 	//constructor
-	public GameView(String playerName, Runnable onReturnToMenu) {
+	public GameView(String playerName, int cpuCount, Runnable onReturnToMenu) {
 		this.humanPlayerName = playerName;
+		this.cpuCount = cpuCount;
 		this.onReturnToMenu = onReturnToMenu;
 		buildLayout();
 		startNewGame();
@@ -202,10 +204,10 @@ public class GameView extends StackPane {
 		List<Player> players = new ArrayList<>();
 		players.add(player);
 		
-		//bots are hardcoded for now
-		players.add(new Player("CPU 1", false));
-		players.add(new Player("CPU 2", false));
-		players.add(new Player("CPU 3", false));
+		// CPU count is set from MainMenu
+		for (int c = 1; c <= cpuCount; c++) {
+			players.add(new Player("CPU " + c, false));
+		}
 		
 		//deal cards
 		Deck deck = new Deck();
@@ -222,7 +224,7 @@ public class GameView extends StackPane {
 		java.util.Map<Player, List<model.Card>> initialDiscards = new java.util.HashMap<>();
 		
 		for (Player p : players) {
-			List<model.Card> discarded = p.discardPairs();
+			List<model.Card> discarded = p.discardNonTrapPairs();
 			if (!discarded.isEmpty()) {
 				gameState.log(p.getName() + " discarded " + (discarded.size() / 2) + " pair(s)");
 				initialDiscards.put(p, discarded);
@@ -316,7 +318,6 @@ public class GameView extends StackPane {
 	
 	//human input wiring
 	private void wireHumanDrawClicks() {
-		// Find the Human's hand view so the card knows where to fly to!
 		PlayerPlate humanPlate = playerPlates.stream()
 				.filter(p -> p.player.getIsHuman())
 				.findFirst()
@@ -324,21 +325,19 @@ public class GameView extends StackPane {
 		
 		for (PlayerHandView view : handViews) {
 			if (!view.getPlayer().getIsHuman()) {
-				//if player is not human
 				view.setOnCardClicked(cardIndex -> {
 					if (player.canDraw()) {
-						// 2. Animate from the specific card to the Avatar Plate
 						animEngine.animateSteal(view.getCardNode(cardIndex), humanPlate, () -> {
-							gameLoop.submitHumanDraw(view.getPlayer(), cardIndex);
-						});
+                            gameLoop.submitHumanDraw(player, view.getPlayer(), cardIndex); // Added 'player'
+                        });
 					}
-					/*
-					Player target = player.getNextDrawTarget();
-					if (target != null && target == view.getPlayer()) {
-						gameLoop.submitHumanDraw(cardIndex);
-					}
-					 */
 				});
+			} else {
+				// wire trap play buttons on the human's own hand
+				view.setOnTrapPlayed(trap -> {
+                    gameLoop.submitHumanTrapPlay(player, trap); // Added 'player'
+                    gameLoop.processHumanTrapPlay(player);
+                });
 			}
 		}
 	}
@@ -626,22 +625,6 @@ public class GameView extends StackPane {
 	    btn.setOnMouseExited(e -> btn.setOpacity(1.0));
 	    return btn;
 	}
- 
-    private Label makeSmallLabel(String text) {
-        Label l = new Label(text);
-        l.setStyle(
-            "-fx-font-family: 'DM Sans', sans-serif;" +
-            "-fx-font-size: 11px;" +
-            "-fx-text-fill: #4a7a5a;" +
-            "-fx-padding: 4 0 0 0;"
-        );
-        return l;
-    }
- 
-    //creates hover tint
-    private String lighten(String hex) {
-        return hex + "dd";
-    }
  
     // overlay getter
     public StackPane getOverlayPane() {

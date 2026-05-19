@@ -3,50 +3,81 @@ package application;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import network.GameClient;
+import network.GameServer;
 import ui.GameView;
+import ui.Instructions;
 import ui.MainMenu;
+import ui.MultiplayerGameView;
+import ui.NetworkLobby;
 
-public class Main extends Application{
-	private Stage window;
-	private Scene mainScene;
-	
-	@Override
-	public void start(Stage primaryStage) {
-		this.window = primaryStage;
-		window.setTitle("UPLB Babanuki");
+public class Main extends Application {
+    private Stage window;
+    private Scene mainScene;
 
-		// Show the Main Menu initially
-		showMainMenu();
+    @Override
+    public void start(Stage primaryStage) {
+        this.window = primaryStage;
+        window.setTitle("UPLB Babanuki");
+        showMainMenu();
+        window.show();
+    }
 
-		window.show();
-	}
-	
-	private void showMainMenu() {
-		MainMenu menu = new MainMenu(
-			// Callback 1: Singleplayer Clicked
-			playerName -> startGame(playerName, false), 
-			
-			// Callback 2: Multiplayer Clicked
-			playerName -> {
-				System.out.println("Multiplayer coming soon! Starting Singleplayer for now.");
-				startGame(playerName, true); 
-			}
-		);
+    private void showMainMenu() {
+        MainMenu menu = new MainMenu(
+            (playerName, cpuCount) -> startSingleplayer(playerName, cpuCount),
+            playerName -> showNetworkLobby(playerName),
+            () -> {
+                Instructions instructions = new Instructions(() -> {
+                    showMainMenu(); 
+                });
+                mainScene.setRoot(instructions);
+            }
+        );
+        mainScene = new Scene(menu, 1000, 700);
+        window.setScene(mainScene);
+    }
 
-		// Set the window size (adjust 1000x700 to whatever looks best for you)
-		mainScene = new Scene(menu, 1000, 700); 
-		window.setScene(mainScene);
-	}
+    private void startSingleplayer(String playerName, int cpuCount) {
+        GameView game = new GameView(playerName, cpuCount, this::showMainMenu);
+        mainScene.setRoot(game);
+    }
 
-	private void startGame(String playerName, boolean isMultiplayer) {
-		// Create the game, passing in the custom name!
-		GameView game = new GameView(playerName, () -> showMainMenu());
-		
-		// Swap the root of the scene to the game layout
-		mainScene.setRoot(game);
-	}
+    private void showNetworkLobby(String playerName) {
+        NetworkLobby lobby = new NetworkLobby(playerName,
+            (server, client) -> startMultiplayerView(client, server),
+            (client)         -> startMultiplayerView(client, null),
+            this::showMainMenu
+        );
+        mainScene.setRoot(lobby);
+    }
 
-	public static void main(String[] args) {
-		launch(args);
-	}
+    private void startMultiplayerView(GameClient client, GameServer server) {
+        MultiplayerGameView mpView = new MultiplayerGameView(client, server, this::showMainMenu);
+        mainScene.setRoot(mpView);
+
+        // rewire client callbacks from the lobby stubs to the real game view
+        client.setCallbacks(new GameClient.Callbacks() {
+            @Override public void onWelcome(int slot)              { /* already set before connect */ }
+            @Override public void onPlayerList(String[] names)     { mpView.onPlayerList(names); }
+            @Override public void onState(String[] entries)        { mpView.onState(entries); }
+            @Override public void onLog(String message)            { mpView.onLog(message); }
+            @Override public void onHand(String[] entries)           { mpView.onHand(entries); }
+            @Override public void onTrapPrompt(String t, String[] opts) { mpView.onTrapPrompt(t, opts); }
+            @Override public void onGameOver(String[] names)       { mpView.onGameOver(names); }
+            @Override public void onChat(String s, String txt)     { /* future */ }
+            @Override public void onDisconnect(String reason)      {
+                javafx.application.Platform.runLater(this::showMainMenu);
+            }
+            @Override public void onAnimSteal(int stealerSlot, int targetSlot, int cardIndex) {
+                mpView.onAnimSteal(stealerSlot, targetSlot, cardIndex);
+            }
+            @Override public void onAnimDiscard(int slot, String[] cards) {
+                mpView.onAnimDiscard(slot, cards);
+            }
+            private void showMainMenu() { Main.this.showMainMenu(); }
+        });
+    }
+
+    public static void main(String[] args) { launch(args); }
 }

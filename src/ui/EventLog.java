@@ -34,7 +34,7 @@ public class EventLog extends ScrollPane {
 			//highlight trap card events
 			if (message.contains("SINGKO")) {
 				label.setStyle(label.getStyle() + "-fx-text-fill: #f0c040;");
-			} else if (message.contains("UNO") || message.contains("AMIS")) {
+			} else if (message.contains("DOS") || message.contains("AMIS")) {
 				label.setStyle(label.getStyle() + "-fx-text-fill: #f07040;");
 			} else if (message.contains("swapped") || message.contains("skips")) {
 				label.setStyle(label.getStyle() + "-fx-text-fill: #d88840;");
