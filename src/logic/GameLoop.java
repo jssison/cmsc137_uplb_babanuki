@@ -19,7 +19,10 @@ public class GameLoop implements Runnable {
 	private final java.util.Map<Player, Long> afkTimers = new java.util.concurrent.ConcurrentHashMap<>();
 	private final java.util.Map<Player, PendingDraw> pendingDraws = new java.util.concurrent.ConcurrentHashMap<>();
 	private final java.util.Map<Player, Card.Trap> pendingTraps = new java.util.concurrent.ConcurrentHashMap<>();
-
+	
+	// timer for ai mimicking thinking
+	private final java.util.Map<Player, Long> aiThinkingTimers = new java.util.concurrent.ConcurrentHashMap<>();
+	
 	private static class PendingDraw {
 		final Player target; final int index;
 		PendingDraw(Player t, int i) { this.target = t; this.index = i; }
@@ -64,7 +67,7 @@ public class GameLoop implements Runnable {
 	}
 
 	private void tick() {
-		boolean cooldownChanged = false; // THE FIX: Track if a timer expired!
+		boolean cooldownChanged = false; 
 
 		for (Player player : state.getPlayers()) {
 			if (state.isFinished() || !isRunning) break;
@@ -81,17 +84,36 @@ public class GameLoop implements Runnable {
 					state.log(player.getName() + " was skipped.");
 					cooldownChanged = true;
 				}
+				
+				// If they get stunned (SINGKO) or are on cooldown, wipe their current thought process
+				aiThinkingTimers.remove(player);
 				continue;
 			}
 
 			if (player.getIsHuman()) {
 				processHumanTick(player);
 			} else {
-				processAITick(player);
+				// AI fake thinking
+				
+				// If they have an UNO trap card, bypass thinking and rapid-fire
+				if (player.getExtraDraws() > 0) {
+					processAITick(player);
+					aiThinkingTimers.remove(player);
+					continue;
+				}
+
+				// pretend to be human and think for 0.5s to 6.0s
+				long now = System.currentTimeMillis();
+				if (!aiThinkingTimers.containsKey(player)) {
+					long thinkTime = 500 + (long)(Math.random() * 5500); 
+					aiThinkingTimers.put(player, now + thinkTime);
+				} else if (now >= aiThinkingTimers.get(player)) {
+					processAITick(player);
+					aiThinkingTimers.remove(player);
+				}
 			}
 		}
 
-		// THE FIX: Only broadcast state if something actually changed!
 		if (cooldownChanged) {
 			state.checkEndConditions();
 			state.notifyStateChanged();
@@ -111,7 +133,13 @@ public class GameLoop implements Runnable {
 					animatedPerformDraw(human, target, idx);
 				}
 				afkTimers.remove(human);
-				human.startCooldown(HUMAN_COOLDOWN_MS);
+				// Consume an Extra Draw charge if they have one
+				if (human.consumeExtraDraw()) {
+					human.startCooldown(0); 
+					state.log(human.getName() + " used an extra draw! (" + human.getExtraDraws() + " left)");
+				} else {
+					human.startCooldown(HUMAN_COOLDOWN_MS);
+				}
 			}
 			return;
 		}
@@ -154,10 +182,27 @@ public class GameLoop implements Runnable {
 			List<Card> discarded = player.removeTrapPair(trap);
 			if (discarded.isEmpty()) continue;
 
-			state.log(player.getName() + " plays " + trap.name() + " trap pair!");
 			if (animationCallback != null)
 				animationCallback.playDiscardAnimation(player, discarded);
 
+			// Bot uses UNO
+			if (trap == Card.Trap.UNO) {
+				player.addExtraDraws(3);
+				state.log(player.getName() + " plays UNO! Next 3 draws have zero cooldown!");
+				continue;
+			}
+			
+			// Bot uses SINGKO
+			if (trap == Card.Trap.SINGKO) {
+				state.log(player.getName() + " plays SINGKO! All opponents stunned for 5 seconds!");
+				for (Player p : state.getActivePlayers()) {
+					if (p != player) p.startCooldown(5000);
+				}
+				continue;
+			}
+
+			// Bot uses AMIS
+			state.log(player.getName() + " plays " + trap.name() + " trap pair!");
 			List<model.Player> targets = state.getActivePlayers().stream()
 				.filter(p -> p != player && p.handSize() > 0)
 				.toList();
@@ -220,10 +265,37 @@ public class GameLoop implements Runnable {
 		List<Card> discarded = human.removeTrapPair(trap);
 		if (discarded.isEmpty()) return;
 
-		state.log(human.getName() + " plays " + trap.name() + " trap pair!");
 		if (animationCallback != null)
 			animationCallback.playDiscardAnimation(human, discarded);
 
+		// Intercept UNO (Extra Draws)
+		if (trap == Card.Trap.UNO) {
+			human.addExtraDraws(3); 
+			state.log(human.getName() + " plays UNO! Next 3 draws have zero cooldown!");
+			state.checkEndConditions();
+			state.notifyStateChanged();
+			return; 
+		}
+		
+		// Intercept SINGKO 
+		if (trap == Card.Trap.SINGKO) {
+			state.log(human.getName() + " plays SINGKO! All opponents stunned for 5 seconds!");
+			
+			// Stun everyone except the caster!
+			for (Player p : state.getActivePlayers()) {
+				if (p != human) {
+					p.startCooldown(5000);
+				}
+			}
+			
+			state.checkEndConditions();
+			state.notifyStateChanged();
+			return; 
+		}
+
+		// For AMIS, proceed to target selection pop-up
+		state.log(human.getName() + " plays " + trap.name() + " trap pair!");
+		
 		List<Player> targets = state.getActivePlayers().stream()
 			.filter(p -> p != human && p.handSize() > 0)
 			.toList();

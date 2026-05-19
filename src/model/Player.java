@@ -17,6 +17,8 @@ public class Player {
 	private DrawState drawState = DrawState.READY;
 	private long cooldownUntil = 0;
 	private boolean isOut = false;
+	
+	private int extraDraws = 0;
 
 	public Player(String name, boolean isHuman) {
 		this.name = name;
@@ -194,6 +196,24 @@ public class Player {
 	public long getRemainingCooldown() {
 		if (drawState != DrawState.COOLDOWN) return 0;
 		return Math.max(0, cooldownUntil - System.currentTimeMillis());
+	}
+	
+	// ── UNO (EXTRA DRAWS) TRAP MECHANICS ──────────────────────────
+
+	public synchronized void addExtraDraws(int amount) {
+		this.extraDraws += amount;
+	}
+
+	public synchronized boolean consumeExtraDraw() {
+		if (this.extraDraws > 0) {
+			this.extraDraws--;
+			return true;
+		}
+		return false;
+	}
+
+	public synchronized int getExtraDraws() {
+		return this.extraDraws;
 	}
 
 	// getters
