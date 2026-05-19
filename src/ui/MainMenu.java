@@ -17,7 +17,8 @@ public class MainMenu extends VBox {
     private final VBox mainButtons = new VBox(15);
     private final VBox spConfigBox = new VBox(15);
 
-    public MainMenu(BiConsumer<String, Integer> onSinglePlayerStart, Consumer<String> onMultiPlayerStart) {
+    // THE FIX 1: Added 'Runnable onShowInstructions' to the constructor
+    public MainMenu(BiConsumer<String, Integer> onSinglePlayerStart, Consumer<String> onMultiPlayerStart, Runnable onShowInstructions) {
         this.setAlignment(Pos.CENTER);
         this.setSpacing(30);
         this.setStyle("-fx-background-color: #122a1e;");
@@ -25,8 +26,11 @@ public class MainMenu extends VBox {
         // ── Title ─────────────────────────────────────────────────────────────
         Label title = new Label("UPLB Babanuki");
         title.setStyle("-fx-font-family: 'Playfair Display', serif; -fx-font-size: 64px; -fx-font-weight: bold; -fx-text-fill: #e8c87a; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.8), 15, 0, 0, 8);");
-        Label subtitle = new Label("The Classic Card Game");
+        
+        // THE FIX 2: Updated the subtitle to reflect the real-time FFA nature!
+        Label subtitle = new Label("A fast-paced twist on the classic card game");
         subtitle.setStyle("-fx-font-family: 'DM Sans', sans-serif; -fx-font-size: 18px; -fx-text-fill: #8ca898; -fx-font-style: italic;");
+        
         VBox titleBox = new VBox(5, title, subtitle);
         titleBox.setAlignment(Pos.CENTER);
         VBox.setMargin(titleBox, new Insets(0, 0, 30, 0));
@@ -40,8 +44,14 @@ public class MainMenu extends VBox {
         });
 
         Button multiPlayerBtn = makeButton("Multiplayer Lobby", "#1c4d8c", "#e8c87a");
-        multiPlayerBtn.setOnAction(e -> onMultiPlayerStart.accept("")); // Pass empty, Lobby handles name now!
-        mainButtons.getChildren().addAll(singlePlayerBtn, multiPlayerBtn);
+        multiPlayerBtn.setOnAction(e -> onMultiPlayerStart.accept("")); 
+
+        // THE FIX 3: Created the Instructions Button with a sleek bronze background
+        Button instructionsBtn = makeButton("How to Play", "#8c601c", "#e8c87a");
+        instructionsBtn.setOnAction(e -> onShowInstructions.run());
+
+        // Added all three buttons to the layout
+        mainButtons.getChildren().addAll(singlePlayerBtn, multiPlayerBtn, instructionsBtn);
 
         // ── Singleplayer Config (Hidden by default) ───────────────────────────
         spConfigBox.setAlignment(Pos.CENTER);

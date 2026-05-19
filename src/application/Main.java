@@ -6,6 +6,7 @@ import javafx.stage.Stage;
 import network.GameClient;
 import network.GameServer;
 import ui.GameView;
+import ui.Instructions;
 import ui.MainMenu;
 import ui.MultiplayerGameView;
 import ui.NetworkLobby;
@@ -25,7 +26,13 @@ public class Main extends Application {
     private void showMainMenu() {
         MainMenu menu = new MainMenu(
             (playerName, cpuCount) -> startSingleplayer(playerName, cpuCount),
-            playerName -> showNetworkLobby(playerName)
+            playerName -> showNetworkLobby(playerName),
+            () -> {
+                Instructions instructions = new Instructions(() -> {
+                    showMainMenu(); 
+                });
+                mainScene.setRoot(instructions);
+            }
         );
         mainScene = new Scene(menu, 1000, 700);
         window.setScene(mainScene);
