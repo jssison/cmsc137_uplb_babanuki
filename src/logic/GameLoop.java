@@ -95,7 +95,7 @@ public class GameLoop implements Runnable {
 			} else {
 				// AI fake thinking
 				
-				// If they have an UNO trap card, bypass thinking and rapid-fire
+				// If they have an DOS trap card, bypass thinking and rapid-fire
 				if (player.getExtraDraws() > 0) {
 					processAITick(player);
 					aiThinkingTimers.remove(player);
@@ -185,10 +185,10 @@ public class GameLoop implements Runnable {
 			if (animationCallback != null)
 				animationCallback.playDiscardAnimation(player, discarded);
 
-			// Bot uses UNO
-			if (trap == Card.Trap.UNO) {
+			// Bot uses DOS
+			if (trap == Card.Trap.DOS) {
 				player.addExtraDraws(3);
-				state.log(player.getName() + " plays UNO! Next 3 draws have zero cooldown!");
+				state.log(player.getName() + " plays DOS! Next 3 draws have zero cooldown!");
 				continue;
 			}
 			
@@ -268,10 +268,10 @@ public class GameLoop implements Runnable {
 		if (animationCallback != null)
 			animationCallback.playDiscardAnimation(human, discarded);
 
-		// Intercept UNO (Extra Draws)
-		if (trap == Card.Trap.UNO) {
+		// Intercept DOS (Extra Draws)
+		if (trap == Card.Trap.DOS) {
 			human.addExtraDraws(3); 
-			state.log(human.getName() + " plays UNO! Next 3 draws have zero cooldown!");
+			state.log(human.getName() + " plays DOS! Next 3 draws have zero cooldown!");
 			state.checkEndConditions();
 			state.notifyStateChanged();
 			return; 

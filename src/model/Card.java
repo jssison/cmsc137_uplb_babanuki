@@ -43,7 +43,7 @@ public class Card {
 	}
 	
 	//trap cards
-	public enum Trap { NONE, SINGKO, UNO, AMIS }
+	public enum Trap { NONE, SINGKO, DOS, AMIS }
 	
 	private final Rank rank;
 	private final Suit suit;
@@ -60,7 +60,7 @@ public class Card {
 	
 	//check if rank is of the trap card ranks
 	// ACE = AMIS
-	// UNO = 2
+	// DOS = 2
 	// SINGKO = 5
 	public boolean isTrap() {
 		return this.rank == Rank.FIVE || this.rank == Rank.TWO || this.rank == Rank.ACE;
@@ -69,7 +69,7 @@ public class Card {
 	public Trap getTrap() {
 		return switch(rank) {
 			case FIVE -> Trap.SINGKO;
-			case TWO -> Trap.UNO;
+			case TWO -> Trap.DOS;
 			case ACE -> Trap.AMIS;
 			default -> Trap.NONE;
 		};

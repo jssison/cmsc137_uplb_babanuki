@@ -198,7 +198,7 @@ public class Player {
 		return Math.max(0, cooldownUntil - System.currentTimeMillis());
 	}
 	
-	// ── UNO (EXTRA DRAWS) TRAP MECHANICS ──────────────────────────
+	// ── DOS (EXTRA DRAWS) TRAP MECHANICS ──────────────────────────
 
 	public synchronized void addExtraDraws(int amount) {
 		this.extraDraws += amount;

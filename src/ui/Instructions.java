@@ -39,14 +39,14 @@ public class Instructions extends StackPane {
                       "The only goal is to empty your hand by finding pairs from other players. " +
                       "The player ending up with the single un-paired Queen loses!"),
             
-            // THE FIX: Added the visual Queen display here!
+            // Added the visual Queen display here!
             buildQueenDisplay(),
             
             buildSectionTitle("THE TRAP CARDS"),
             buildText("Trap cards are dangerous weapons. They do not auto-discard. " +
                       "When you collect a PAIR of identical trap cards, they will glow. Click either card to activate its effect!"),
             
-            // THE FIX: Renamed UNO to DOS, and the method now automatically generates two different suits!
+            // DOS, and the method now automatically generates two different suits!
             buildTrapExplanation("DOS", Card.Rank.TWO, 
                 "Grants you 3 Extra Draws. For your next 3 actions, your cooldown is instantly set to zero. " +
                 "Use this to rapidly strip an opponent's hand before they can react!"),
@@ -77,7 +77,6 @@ public class Instructions extends StackPane {
         HBox box = new HBox(10);
         box.setAlignment(Pos.CENTER_LEFT);
         box.getChildren().addAll(
-            // Shows the 3 Queens actually in the game (no glowing trap effect)
             createVisualCard(new Card(Card.Rank.QUEEN, Card.Suit.SPADES), false),
             createVisualCard(new Card(Card.Rank.QUEEN, Card.Suit.CLUBS), false),
             createVisualCard(new Card(Card.Rank.QUEEN, Card.Suit.DIAMONDS), false)
@@ -85,7 +84,6 @@ public class Instructions extends StackPane {
         return box;
     }
 
-    // THE FIX: Now takes a Rank, and automatically builds a Black and Red card for the pair
     private HBox buildTrapExplanation(String title, Card.Rank trapRank, String description) {
         HBox row = new HBox(20);
         row.setAlignment(Pos.CENTER_LEFT);
@@ -123,7 +121,6 @@ public class Instructions extends StackPane {
         return lbl;
     }
 
-    // Reuses your exact Dark Mode styling so the instructions match the game perfectly
     private Button createVisualCard(Card card, boolean isTrap) {
         Button btn = new Button(card.toString());
         String color = card.getSuit().isRed() ? "#ff5555" : (isTrap ? "#fdf6e3" : "#1a1a2e");

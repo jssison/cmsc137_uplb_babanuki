@@ -36,7 +36,7 @@ public class TrapCardHandler {
 	        
 	        switch (c.getTrap()) {
 	            case SINGKO -> handleSingko(c, activator, targets, state, targetChooser);
-	            case UNO -> handleUno(c, activator, targets, state, targetChooser);
+	            case DOS -> handleDos(c, activator, targets, state, targetChooser);
 	            case AMIS -> handleAmis(c, activator, targets, state, targetChooser);
 	            default -> {}
 	        }
@@ -76,8 +76,8 @@ public class TrapCardHandler {
 	    }
 	}
 	
-	//UNO: Steal one card from a chosen player
-	private static void handleUno(
+	//DOS: Steal one card from a chosen player
+	private static void handleDos(
 	    Card card,
 	    Player activator,
 	    List<Player> targets,
@@ -86,8 +86,8 @@ public class TrapCardHandler {
 	    ) {
 	    
 	    if (activator.getIsHuman()) {
-	        chooser.choose("UNO! Choose a player to steal from: ", targets, target -> {
-	            executeUnoSteal(activator, target, state, chooser);
+	        chooser.choose("DOS! Choose a player to steal from: ", targets, target -> {
+	            executeDosSteal(activator, target, state, chooser);
 	        });
 	    } else {
 	    	//remove this for multiplayer
@@ -97,14 +97,14 @@ public class TrapCardHandler {
 	                .max((a, b) -> Integer.compare(a.handSize(), b.handSize()))
 	                .orElse(targets.get(0));
 	                
-	        executeUnoSteal(activator, target, state, chooser);
+	        executeDosSteal(activator, target, state, chooser);
 	    }
 	}
 
 	// helper method holding effect logic
-	private static void executeUnoSteal(Player activator, Player target, GameState state, TargetChooser chooser) {
+	private static void executeDosSteal(Player activator, Player target, GameState state, TargetChooser chooser) {
 	    if (target.handSize() == 0) {
-	        state.log("UNO! " + target.getName() + " has no cards to steal.");
+	        state.log("DOS! " + target.getName() + " has no cards to steal.");
 	        return;
 	    }
 	    
@@ -113,12 +113,12 @@ public class TrapCardHandler {
 	    Card stolen = target.takeCard(index);
 	    activator.addCard(stolen);
 	    
-	    state.log("UNO! " + activator.getName() + " stole a card from " + target.getName() + ".");
+	    state.log("DOS! " + activator.getName() + " stole a card from " + target.getName() + ".");
 	    
 	    // Check if the stolen card created a new pair
 	    List<Card> newDiscards = activator.discardNonTrapPairs();
 	    if (!newDiscards.isEmpty()) {
-	        state.log(activator.getName() + " discards " + (newDiscards.size() / 2) + " pair(s) after UNO steal.");
+	        state.log(activator.getName() + " discards " + (newDiscards.size() / 2) + " pair(s) after DOS steal.");
 	        handleDiscardsNoChain(newDiscards, activator, state, chooser);
 	    }
 	    
@@ -166,14 +166,14 @@ public class TrapCardHandler {
 	}
 	
 	//no recurse ver of handleDiscards
-	//to prevent UNO chains
+	//to prevent DOS chains
 	private static void handleDiscardsNoChain(
 		List<Card> discarded,
 		Player activator,
 		GameState state, 
 		TargetChooser chooser
 	) {
-		state.log(activator.getName() + " discarded pairs after UNO steal (trap effects suppressed).");
+		state.log(activator.getName() + " discarded pairs after DOS steal (trap effects suppressed).");
 	}
 	
 	//target chooser interface
